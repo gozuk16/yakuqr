@@ -1,0 +1,45 @@
+package parser
+
+// Version はJAHIS規約のバージョンを表す。
+type Version int
+
+const (
+	VersionUnknown Version = 0
+	Version2       Version = 2
+	Version3       Version = 3
+	Version4       Version = 4
+)
+
+func (v Version) String() string {
+	switch v {
+	case Version2:
+		return "Ver.2"
+	case Version3:
+		return "Ver.3"
+	case Version4:
+		return "Ver.4"
+	default:
+		return "Unknown"
+	}
+}
+
+// Record はJAHISの1レコードを表す。
+type Record struct {
+	Type   string   // レコード種別番号（先頭フィールド）
+	Fields []string // 種別番号を含む全フィールド
+}
+
+// SplitInfo は分割QRの情報を保持する。
+type SplitInfo struct {
+	Current int // 現在のQR番号（1始まり）
+	Total   int // 分割総数
+}
+
+// Prescription は解析済み処方箋データを表す。
+type Prescription struct {
+	Version    Version
+	RawQRs     []string            // 生QRデータ（UTF-8変換済み）
+	Records    []Record            // 全レコード（結合後）
+	RecordMap  map[string][]Record // レコード種別 → レコードリスト
+	SplitInfos []SplitInfo         // 分割QR情報（なければlen=0）
+}
