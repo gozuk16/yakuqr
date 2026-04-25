@@ -7,9 +7,25 @@ import (
 	"github.com/gozuk16/yakuqr/pkg/validator"
 )
 
-func makeMinimalPrescription() parser.Prescription {
+// makeMinimalPrescriptionVer4 は Ver.4 形式の最小限の処方箋を生成する。
+// Ver.4: レコード1=患者情報(fields[1]=氏名, fields[3]=生年月日)、レコード201=薬品情報
+func makeMinimalPrescriptionVer4() parser.Prescription {
 	records := []parser.Record{
-		{Type: "1", Fields: []string{"1", "4", "131012345"}},
+		{Type: "1", Fields: []string{"1", "山田太郎", "1", "19700101", "100-0001"}},
+		{Type: "201", Fields: []string{"201", "1", "アムロジピン錠5mg", "1", "錠"}},
+	}
+	rm := map[string][]parser.Record{
+		"1":   {records[0]},
+		"201": {records[1]},
+	}
+	return parser.Prescription{Version: parser.Version4, Records: records, RecordMap: rm}
+}
+
+// makeMinimalPrescriptionVer2 は Ver.2 形式の最小限の処方箋を生成する。
+// Ver.2: レコード1=処方箋情報、レコード2=患者情報(fields[1]=氏名, fields[3]=生年月日)、レコード6=薬品情報
+func makeMinimalPrescriptionVer2() parser.Prescription {
+	records := []parser.Record{
+		{Type: "1", Fields: []string{"1", "2", "131012345"}},
 		{Type: "2", Fields: []string{"2", "山田太郎", "ヤマダタロウ", "19700101", "1"}},
 		{Type: "6", Fields: []string{"6", "110626050", "アムロジピン錠5mg", "1", "錠"}},
 	}
@@ -18,11 +34,11 @@ func makeMinimalPrescription() parser.Prescription {
 		"2": {records[1]},
 		"6": {records[2]},
 	}
-	return parser.Prescription{Version: parser.Version4, Records: records, RecordMap: rm}
+	return parser.Prescription{Version: parser.Version2, Records: records, RecordMap: rm}
 }
 
 func TestValidate_ValidPrescription_NoErrors(t *testing.T) {
-	p := makeMinimalPrescription()
+	p := makeMinimalPrescriptionVer4()
 	results := validator.Validate(p)
 	for _, r := range results {
 		if r.Level == validator.LevelError {
@@ -32,7 +48,7 @@ func TestValidate_ValidPrescription_NoErrors(t *testing.T) {
 }
 
 func TestValidate_MissingRecord1_ReturnsError(t *testing.T) {
-	p := makeMinimalPrescription()
+	p := makeMinimalPrescriptionVer4()
 	delete(p.RecordMap, "1")
 	results := validator.Validate(p)
 	found := false
@@ -47,10 +63,11 @@ func TestValidate_MissingRecord1_ReturnsError(t *testing.T) {
 }
 
 func TestValidate_MissingPatientName_ReturnsError(t *testing.T) {
-	p := makeMinimalPrescription()
-	rec := p.RecordMap["2"][0]
+	p := makeMinimalPrescriptionVer4()
+	// Ver.4 では患者氏名はレコード1のフィールド2
+	rec := p.RecordMap["1"][0]
 	rec.Fields[1] = ""
-	p.RecordMap["2"][0] = rec
+	p.RecordMap["1"][0] = rec
 	results := validator.Validate(p)
 	found := false
 	for _, r := range results {
@@ -64,8 +81,7 @@ func TestValidate_MissingPatientName_ReturnsError(t *testing.T) {
 }
 
 func TestValidate_Ver2_ReturnsInfo(t *testing.T) {
-	p := makeMinimalPrescription()
-	p.Version = parser.Version2
+	p := makeMinimalPrescriptionVer2()
 	results := validator.Validate(p)
 	found := false
 	for _, r := range results {

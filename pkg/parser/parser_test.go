@@ -34,8 +34,12 @@ func TestParse_SingleQR_Records(t *testing.T) {
 	if len(p.Records) == 0 {
 		t.Fatal("expected records")
 	}
-	if _, ok := p.RecordMap["2"]; !ok {
-		t.Error("expected record type 2 (patient info)")
+	// Ver.4 では患者情報はレコード1、薬品情報はレコード201に格納される
+	if _, ok := p.RecordMap["1"]; !ok {
+		t.Error("expected record type 1 (patient info in Ver.4)")
+	}
+	if _, ok := p.RecordMap["201"]; !ok {
+		t.Error("expected record type 201 (drug info in Ver.4)")
 	}
 }
 
@@ -43,14 +47,16 @@ func TestParse_SplitQR_Combined(t *testing.T) {
 	r1 := readTestdata("ver4_split_1.txt")
 	r2 := readTestdata("ver4_split_2.txt")
 	p, _ := parser.Parse([]string{r1, r2})
-	if _, ok := p.RecordMap["6"]; !ok {
-		t.Error("expected record type 6 (drug info) after combining split QRs")
+	// Ver.4 分割QR結合後、薬品情報はレコード201に格納される
+	if _, ok := p.RecordMap["201"]; !ok {
+		t.Error("expected record type 201 (drug info) after combining split QRs")
 	}
 }
 
 func TestParse_SplitQR_Missing(t *testing.T) {
-	r1 := readTestdata("ver4_split_1.txt")
-	_, msgs := parser.Parse([]string{r1})
+	// QR#2 のみ提供 → QR#1 欠落の警告が出ることを確認
+	r2 := readTestdata("ver4_split_only2.txt")
+	_, msgs := parser.Parse([]string{r2})
 	found := false
 	for _, w := range msgs {
 		if strings.Contains(w, "分割") {

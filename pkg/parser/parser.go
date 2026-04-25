@@ -25,7 +25,7 @@ func Parse(rawQRs []string) (Prescription, []string) {
 		p.RecordMap[r.Type] = append(p.RecordMap[r.Type], r)
 	}
 
-	version, info := detectVersion(p.RecordMap)
+	version, info := detectVersion(p.RecordMap, rawQRs)
 	p.Version = version
 	if info != "" {
 		msgs = append(msgs, info)
@@ -35,12 +35,13 @@ func Parse(rawQRs []string) (Prescription, []string) {
 }
 
 // combineQRs は分割QRを結合して単一のレコード文字列を返す。
+// JAHIS形式: 各QRの先頭行が "JAHISTC{ver},{seq}" (例: "JAHISTC04,1")
 func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 	var msgs []string
 
 	type qrPart struct {
 		content string
-		info    SplitInfo
+		seq     int
 	}
 
 	var parts []qrPart
@@ -51,16 +52,18 @@ func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 		if len(lines) == 0 {
 			continue
 		}
-		// 先頭レコードが種別9なら分割QR
-		// フォーマット: "9,<ver>,<N>,<M>"
-		// NOTE: JAHIS規約原文でフィールド位置を確認すること
-		fields := strings.Split(lines[0], ",")
-		if fields[0] == "9" && len(fields) >= 4 {
-			n, _ := strconv.Atoi(fields[2])
-			m, _ := strconv.Atoi(fields[3])
+		firstLine := strings.TrimSpace(lines[0])
+		if strings.HasPrefix(firstLine, "JAHISTC") {
+			// "JAHISTC{ver},{seq}" から連番を取り出す
+			seq := 1
+			if idx := strings.LastIndex(firstLine, ","); idx >= 0 {
+				if n, err := strconv.Atoi(strings.TrimSpace(firstLine[idx+1:])); err == nil && n > 0 {
+					seq = n
+				}
+			}
 			parts = append(parts, qrPart{
 				content: strings.Join(lines[1:], "\n"),
-				info:    SplitInfo{Current: n, Total: m},
+				seq:     seq,
 			})
 		} else {
 			nonSplit = append(nonSplit, raw)
@@ -68,29 +71,34 @@ func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 	}
 
 	if len(parts) > 0 {
-		total := parts[0].info.Total
-		sorted := make([]string, total)
+		// 連番の最大値を総数とする
+		maxSeq := 0
+		for _, pt := range parts {
+			if pt.seq > maxSeq {
+				maxSeq = pt.seq
+			}
+		}
 
-		// 番号順にソート
 		sort.Slice(parts, func(i, j int) bool {
-			return parts[i].info.Current < parts[j].info.Current
+			return parts[i].seq < parts[j].seq
 		})
 
+		sorted := make([]string, maxSeq)
 		for _, pt := range parts {
-			if pt.info.Current >= 1 && pt.info.Current <= total {
-				sorted[pt.info.Current-1] = pt.content
+			if pt.seq >= 1 && pt.seq <= maxSeq {
+				sorted[pt.seq-1] = pt.content
 			}
 		}
 
 		for i, s := range sorted {
 			if s == "" {
-				msgs = append(msgs, fmt.Sprintf("[WARNING] 分割QRの %d/%d 枚目が見つかりません。取得済み分で処理を続行します", i+1, total))
+				msgs = append(msgs, fmt.Sprintf("[WARNING] 分割QRの %d/%d 枚目が見つかりません。取得済み分で処理を続行します", i+1, maxSeq))
 			}
 		}
 
 		var infos []SplitInfo
 		for _, pt := range parts {
-			infos = append(infos, pt.info)
+			infos = append(infos, SplitInfo{Current: pt.seq, Total: maxSeq})
 		}
 		return strings.Join(sorted, "\n"), infos, msgs
 	}
@@ -115,10 +123,27 @@ func parseRecords(combined string) []Record {
 	return records
 }
 
-// detectVersion はレコードマップからJAHISバージョンを検出する。
-// レコード種別1の2番目フィールド（バージョン番号）を参照する。
-// NOTE: バージョンフィールドの位置はJAHIS規約原文で確認すること。
-func detectVersion(rm map[string][]Record) (Version, string) {
+// detectVersion はJAHISバージョンを検出する。
+// Ver.4: JAHISTC ヘッダの2桁数字 ("04") を優先する。
+// Ver.2/Ver.3: ヘッダなしの場合、レコード種別1のフィールド2 ("2"/"3") を参照する。
+func detectVersion(rm map[string][]Record, rawQRs []string) (Version, string) {
+	for _, raw := range rawQRs {
+		lines := splitLines(raw)
+		if len(lines) == 0 {
+			continue
+		}
+		first := strings.TrimSpace(lines[0])
+		if strings.HasPrefix(first, "JAHISTC") && len(first) >= 9 {
+			switch first[7:9] {
+			case "02":
+				return Version2, ""
+			case "03":
+				return Version3, ""
+			case "04":
+				return Version4, ""
+			}
+		}
+	}
 	if recs, ok := rm["1"]; ok && len(recs) > 0 {
 		fields := recs[0].Fields
 		if len(fields) >= 2 {
