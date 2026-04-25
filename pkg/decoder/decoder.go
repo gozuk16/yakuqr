@@ -2,10 +2,16 @@ package decoder
 
 import (
 	"fmt"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
+	"github.com/makiuchi-d/gozxing"
+	gozxingmulti "github.com/makiuchi-d/gozxing/multi/qrcode"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 )
@@ -69,9 +75,63 @@ func detectFileType(path string) (string, error) {
 	return "", fmt.Errorf("cannot determine file type: %s", path)
 }
 
-// decodeImage は画像ファイルからQRコードをデコードする（Task 3で実装）。
+// decodeImage は画像ファイルからQRコードをデコードする。
 func decodeImage(path string) ([]string, []DecodeError) {
-	return nil, []DecodeError{{Err: fmt.Errorf("decodeImage: not yet implemented")}}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, []DecodeError{{Err: fmt.Errorf("open image: %w", err)}}
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, []DecodeError{{Err: fmt.Errorf("decode image: %w", err)}}
+	}
+
+	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
+	if err != nil {
+		return nil, []DecodeError{{Err: fmt.Errorf("bitmap: %w", err)}}
+	}
+
+	reader := gozxingmulti.NewQRCodeMultiReader()
+	results, err := reader.DecodeMultiple(bmp, nil)
+	if err != nil {
+		return nil, []DecodeError{{Err: fmt.Errorf("qr decode: %w", err)}}
+	}
+
+	// 座標順（上→下、左→右）でソート
+	sort.Slice(results, func(i, j int) bool {
+		pi := results[i].GetResultPoints()
+		pj := results[j].GetResultPoints()
+		if len(pi) == 0 || len(pj) == 0 {
+			return false
+		}
+		yi := pi[0].GetY()
+		yj := pj[0].GetY()
+		if absF64(yi-yj) > 10 {
+			return yi < yj
+		}
+		return pi[0].GetX() < pj[0].GetX()
+	})
+
+	var texts []string
+	var decErrs []DecodeError
+	for i, r := range results {
+		text, err := toUTF8([]byte(r.GetText()))
+		if err != nil {
+			decErrs = append(decErrs, DecodeError{Index: i + 1, Err: err})
+			continue
+		}
+		texts = append(texts, text)
+	}
+	return texts, decErrs
+}
+
+func absF64(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // decodePDF はPDFファイルからQRコードをデコードする（Task 4で実装）。
