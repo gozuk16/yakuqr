@@ -12,6 +12,7 @@ import (
 
 	"github.com/makiuchi-d/gozxing"
 	gozxingmulti "github.com/makiuchi-d/gozxing/multi/qrcode"
+	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/transform"
 )
@@ -134,9 +135,52 @@ func absF64(x float64) float64 {
 	return x
 }
 
-// decodePDF はPDFファイルからQRコードをデコードする（Task 4で実装）。
+// decodePDF はPDFファイルからQRコードをデコードする。
+// pdfcpuのExtractImagesRawでPDF内の埋め込み画像を取得しQRをデコードする。
+// ベクター描画されたQRは対象外（埋め込み画像としてQRが含まれるPDFに対応）。
 func decodePDF(path string) ([]string, []DecodeError) {
-	return nil, []DecodeError{{Err: fmt.Errorf("decodePDF: not yet implemented")}}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, []DecodeError{{Err: fmt.Errorf("open pdf: %w", err)}}
+	}
+	defer f.Close()
+
+	pageImages, err := pdfapi.ExtractImagesRaw(f, nil, nil)
+	if err != nil {
+		return nil, []DecodeError{{Err: fmt.Errorf("extract images from pdf: %w", err)}}
+	}
+
+	var allTexts []string
+	var allErrs []DecodeError
+	globalIdx := 0
+	for _, pageMap := range pageImages {
+		for _, imgEntry := range pageMap {
+			globalIdx++
+			img, _, err := image.Decode(imgEntry)
+			if err != nil {
+				allErrs = append(allErrs, DecodeError{Index: globalIdx, Err: fmt.Errorf("decode embedded image: %w", err)})
+				continue
+			}
+			bmp, err := gozxing.NewBinaryBitmapFromImage(img)
+			if err != nil {
+				continue
+			}
+			reader := gozxingmulti.NewQRCodeMultiReader()
+			results, err := reader.DecodeMultiple(bmp, nil)
+			if err != nil {
+				continue
+			}
+			for _, r := range results {
+				text, err := toUTF8([]byte(r.GetText()))
+				if err != nil {
+					allErrs = append(allErrs, DecodeError{Index: globalIdx, Err: err})
+					continue
+				}
+				allTexts = append(allTexts, text)
+			}
+		}
+	}
+	return allTexts, allErrs
 }
 
 // toUTF8 はShift_JISバイト列をUTF-8文字列に変換する。
