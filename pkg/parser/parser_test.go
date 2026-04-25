@@ -62,6 +62,22 @@ func TestParse_SplitQR_Missing(t *testing.T) {
 	}
 }
 
+func TestParse_Ver3_DetectsVersion(t *testing.T) {
+	raw := readTestdata("ver3_single.txt")
+	p, _ := parser.Parse([]string{raw})
+	if p.Version != parser.Version3 {
+		t.Errorf("expected Version3, got %v", p.Version)
+	}
+}
+
+func TestParse_Ver2_DetectsVersion(t *testing.T) {
+	raw := readTestdata("ver2_single.txt")
+	p, _ := parser.Parse([]string{raw})
+	if p.Version != parser.Version2 {
+		t.Errorf("expected Version2, got %v", p.Version)
+	}
+}
+
 func TestParse_VersionUnknown_FallsBackToVer4(t *testing.T) {
 	raw := "99,unknown\n2,テスト,テスト,19900101,1,,,"
 	p, msgs := parser.Parse([]string{raw})
