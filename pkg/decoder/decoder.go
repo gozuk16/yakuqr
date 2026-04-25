@@ -13,8 +13,6 @@ import (
 	"github.com/makiuchi-d/gozxing"
 	gozxingmulti "github.com/makiuchi-d/gozxing/multi/qrcode"
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
-	"golang.org/x/text/encoding/japanese"
-	"golang.org/x/text/transform"
 )
 
 // DecodeError はデコード失敗の詳細を保持する。
@@ -117,13 +115,8 @@ func decodeImage(path string) ([]string, []DecodeError) {
 
 	var texts []string
 	var decErrs []DecodeError
-	for i, r := range results {
-		text, err := toUTF8([]byte(r.GetText()))
-		if err != nil {
-			decErrs = append(decErrs, DecodeError{Index: i + 1, Err: err})
-			continue
-		}
-		texts = append(texts, text)
+	for _, r := range results {
+		texts = append(texts, r.GetText())
 	}
 	return texts, decErrs
 }
@@ -171,24 +164,10 @@ func decodePDF(path string) ([]string, []DecodeError) {
 				continue
 			}
 			for _, r := range results {
-				text, err := toUTF8([]byte(r.GetText()))
-				if err != nil {
-					allErrs = append(allErrs, DecodeError{Index: globalIdx, Err: err})
-					continue
-				}
-				allTexts = append(allTexts, text)
+				allTexts = append(allTexts, r.GetText())
 			}
 		}
 	}
 	return allTexts, allErrs
 }
 
-// toUTF8 はShift_JISバイト列をUTF-8文字列に変換する。
-func toUTF8(b []byte) (string, error) {
-	dec := japanese.ShiftJIS.NewDecoder()
-	out, _, err := transform.Bytes(dec, b)
-	if err != nil {
-		return "", fmt.Errorf("ShiftJIS->UTF8: %w", err)
-	}
-	return string(out), nil
-}
