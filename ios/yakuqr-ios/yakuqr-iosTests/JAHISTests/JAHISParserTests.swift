@@ -10,7 +10,7 @@ final class JAHISParserTests: XCTestCase {
             .deletingLastPathComponent() // yakuqr-iosTests/
             .deletingLastPathComponent() // yakuqr-ios/
             .deletingLastPathComponent() // ios/
-            .deletingLastPathComponent() // yakuqr/
+            .deletingLastPathComponent() // repo root (e.g. yakuqr/ or worktree dir)
         let path = repoRoot.appendingPathComponent("testdata/\(name)").path
         return try String(contentsOfFile: path, encoding: .utf8)
     }
