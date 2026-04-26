@@ -48,7 +48,7 @@ func detectFileType(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	magic := make([]byte, 8)
 	n, _ := f.Read(magic)
@@ -80,7 +80,7 @@ func decodeImage(path string) ([]string, []DecodeError) {
 	if err != nil {
 		return nil, []DecodeError{{Err: fmt.Errorf("open image: %w", err)}}
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	img, _, err := image.Decode(f)
 	if err != nil {
@@ -136,7 +136,7 @@ func decodePDF(path string) ([]string, []DecodeError) {
 	if err != nil {
 		return nil, []DecodeError{{Err: fmt.Errorf("open pdf: %w", err)}}
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	pageImages, err := pdfapi.ExtractImagesRaw(f, nil, nil)
 	if err != nil {
