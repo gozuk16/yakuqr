@@ -33,3 +33,9 @@ go.work.sum
 
 # Build output
 /yakuqr
+
+# Collected test samples (copyrighted, not committed)
+testdata/collected/*.jpg
+testdata/collected/*.jpeg
+testdata/collected/*.png
+testdata/collected/*.pdf

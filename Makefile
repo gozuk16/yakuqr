@@ -1,7 +1,7 @@
 BINARY := yakuqr
 CMD := ./cmd/yakuqr
 
-.PHONY: build test lint clean
+.PHONY: build test lint clean gen-testdata
 
 build:
 	go build -o $(BINARY) $(CMD)
@@ -14,3 +14,6 @@ lint:
 
 clean:
 	rm -f $(BINARY)
+
+gen-testdata:
+	go run ./tools/gen-testdata-qr/
