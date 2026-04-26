@@ -34,6 +34,9 @@ go.work.sum
 # Build output
 /yakuqr
 
+# Brainstorming visual companion sessions
+.superpowers/
+
 # Collected test samples (copyrighted, not committed)
 testdata/collected/*.jpg
 testdata/collected/*.jpeg
