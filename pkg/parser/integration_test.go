@@ -28,7 +28,6 @@ var pipelineCases = []struct {
 
 func TestPipeline_DecodeParseValidate(t *testing.T) {
 	for _, tc := range pipelineCases {
-		tc := tc
 		t.Run(tc.imageFile, func(t *testing.T) {
 			path := generatedImagePath(tc.imageFile)
 
