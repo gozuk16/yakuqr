@@ -34,6 +34,9 @@ go.work.sum
 # Build output
 /yakuqr
 
+# Git worktrees
+.worktrees/
+
 # Brainstorming visual companion sessions
 .superpowers/
 
