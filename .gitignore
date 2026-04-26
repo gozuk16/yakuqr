@@ -37,6 +37,15 @@ go.work.sum
 # Git worktrees
 .worktrees/
 
+# Xcode build artifacts
+*.xcuserstate
+ios/**/xcuserdata/
+ios/DerivedData/
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
+
 # Brainstorming visual companion sessions
 .superpowers/
 
