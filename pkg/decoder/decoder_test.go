@@ -1,9 +1,9 @@
 package decoder_test
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gozuk16/yakuqr/pkg/decoder"
@@ -29,16 +29,54 @@ func TestDecodeFile_NotExist(t *testing.T) {
 	}
 }
 
-func TestDecodeImage_SingleQR(t *testing.T) {
-	path := testdataPath("qr_ver4_single.png")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Skip("testdata not yet available")
+var decoderImageCases = []struct {
+	file       string
+	wantSubstr string
+}{
+	{"qr_ver4_single.png", "JAHISTC04"},
+	{"qr_ver4_split_1.png", "JAHISTC04,1"},
+	{"qr_ver4_split_2.png", "JAHISTC04,2"},
+	{"qr_ver2_single.png", "1,2,"},
+	{"qr_ver3_single.png", "1,3,"},
+}
+
+func TestDecodeImage_Generated(t *testing.T) {
+	for _, tc := range decoderImageCases {
+		t.Run(tc.file, func(t *testing.T) {
+			path := testdataPath(filepath.Join("generated", tc.file))
+			results, errs := decoder.DecodeFile(path)
+			if len(errs) > 0 {
+				t.Fatalf("decode errors: %v", errs)
+			}
+			if len(results) == 0 {
+				t.Fatal("no QR decoded")
+			}
+			if !strings.Contains(results[0], tc.wantSubstr) {
+				t.Errorf("expected %q in decoded result, got: %q", tc.wantSubstr, results[0])
+			}
+		})
 	}
-	results, errs := decoder.DecodeFile(path)
-	if len(errs) > 0 {
-		t.Fatalf("unexpected errors: %v", errs)
+}
+
+func TestDecodeImage_Collected(t *testing.T) {
+	dir := testdataPath("collected")
+	var files []string
+	for _, pat := range []string{"*.jpg", "*.jpeg", "*.png"} {
+		matches, _ := filepath.Glob(filepath.Join(dir, pat))
+		files = append(files, matches...)
 	}
-	if len(results) == 0 {
-		t.Fatal("expected at least one QR result")
+	if len(files) == 0 {
+		t.Skip("no collected testdata; see testdata/collected/README.md for download instructions")
+	}
+	for _, f := range files {
+		t.Run(filepath.Base(f), func(t *testing.T) {
+			results, errs := decoder.DecodeFile(f)
+			if len(errs) > 0 {
+				t.Logf("decode errors (non-fatal): %v", errs)
+			}
+			if len(results) == 0 {
+				t.Fatal("no QR decoded from collected sample")
+			}
+		})
 	}
 }

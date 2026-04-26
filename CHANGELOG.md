@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2] - 2026-04-26
+### Added
+- `testdata/generated/` に QR 画像テストデータ（go-qrcode で自動生成）を追加
+- `pkg/decoder/decoder_test.go` にテーブル駆動デコーダー統合テストを追加
+- `pkg/parser/integration_test.go` に decoder→parser→validator E2E パイプラインテストを追加
+- `testdata/collected/README.md` に ITmedia サンプルの手動ダウンロード手順を記載
+- `make gen-testdata` で QR 画像を再生成できる Makefile ターゲットを追加
+
 ## [0.1.1] - 2026-04-25
 ### Fixed
 - gozxing はQRコードをUTF-8で返すため、`toUTF8()`による二重変換を除去し文字化けを修正
