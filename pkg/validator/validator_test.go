@@ -12,7 +12,7 @@ import (
 // Ver.4: レコード1=患者情報(fields[1]=氏名, fields[3]=生年月日)、レコード201=薬品情報
 func makeMinimalPrescriptionVer4() parser.Prescription {
 	records := []parser.Record{
-		{Type: "1", Fields: []string{"1", "山田太郎", "1", "19700101", "100-0001"}},
+		{Type: "1", Fields: []string{"1", "テスト太郎", "1", "19700101", "100-0001"}},
 		{Type: "201", Fields: []string{"201", "1", "アムロジピン錠5mg", "1", "錠"}},
 	}
 	rm := map[string][]parser.Record{
@@ -27,7 +27,7 @@ func makeMinimalPrescriptionVer4() parser.Prescription {
 func makeMinimalPrescriptionVer2() parser.Prescription {
 	records := []parser.Record{
 		{Type: "1", Fields: []string{"1", "2", "131012345"}},
-		{Type: "2", Fields: []string{"2", "山田太郎", "ヤマダタロウ", "19700101", "1"}},
+		{Type: "2", Fields: []string{"2", "テスト太郎", "テストタロウ", "19700101", "1"}},
 		{Type: "6", Fields: []string{"6", "110626050", "アムロジピン錠5mg", "1", "錠"}},
 	}
 	rm := map[string][]parser.Record{
