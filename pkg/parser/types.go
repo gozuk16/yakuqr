@@ -5,19 +5,31 @@ type Version int
 
 const (
 	VersionUnknown Version = 0
-	Version2       Version = 2
-	Version3       Version = 3
-	Version4       Version = 4
+	Version1_0     Version = 1
+	Version1_1     Version = 2
+	Version2_0     Version = 3
+	Version2_1     Version = 4
+	Version2_2     Version = 5
+	Version2_3     Version = 6
+	Version2_4     Version = 7
+	Version2_5     Version = 8
+	Version2_6     Version = 9
 )
 
 func (v Version) String() string {
 	switch v {
-	case Version2:
-		return "Ver.2"
-	case Version3:
-		return "Ver.3"
-	case Version4:
-		return "Ver.4"
+	case Version2_1:
+		return "Ver.2.1"
+	case Version2_2:
+		return "Ver.2.2"
+	case Version2_3:
+		return "Ver.2.3"
+	case Version2_4:
+		return "Ver.2.4"
+	case Version2_5:
+		return "Ver.2.5"
+	case Version2_6:
+		return "Ver.2.6"
 	default:
 		return "Unknown"
 	}
