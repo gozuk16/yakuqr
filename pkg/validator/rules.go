@@ -9,14 +9,27 @@ type rule struct {
 }
 
 func rulesFor(v parser.Version) []rule {
-	if v == parser.Version4 {
+	if v == parser.VersionUnknown {
+		return unknownVersionRules()
+	}
+	if v >= parser.Version2_1 {
 		return ver4Rules()
 	}
 	return ver2ver3Rules(v)
 }
 
-// ver4Rules は JAHIS Ver.4 (JAHISTC04 形式) のルールセット。
-// Ver.4 では患者情報がレコード1に、薬品情報がレコード201以上に格納される。
+func unknownVersionRules() []rule {
+	return []rule{{
+		field: "バージョン",
+		level: LevelError,
+		check: func(p parser.Prescription) (bool, string) {
+			return false, "バージョンを検出できませんでした。QRコードの形式を確認してください"
+		},
+	}}
+}
+
+// ver4Rules は JAHISTC04以降（Ver.2.1〜）のルールセット。
+// 患者情報はレコード1に、薬品情報はレコード201以上に格納される。
 func ver4Rules() []rule {
 	return []rule{
 		{
@@ -77,8 +90,8 @@ func ver4Rules() []rule {
 	}
 }
 
-// ver2ver3Rules は JAHIS Ver.2/Ver.3 のルールセット。
-// Ver.2/Ver.3 では患者情報がレコード2に、薬品情報がレコード6に格納される。
+// ver2ver3Rules は JAHISTC01〜03（Ver.1.0〜2.0）のルールセット。
+// 患者情報はレコード2に、薬品情報はレコード6に格納される。
 func ver2ver3Rules(v parser.Version) []rule {
 	base := []rule{
 		{
@@ -147,12 +160,12 @@ func ver2ver3Rules(v parser.Version) []rule {
 		},
 	}
 
-	if v == parser.Version2 || v == parser.Version3 {
+	if v <= parser.Version2_0 {
 		base = append(base, rule{
 			field: "バージョン互換性",
 			level: LevelInfo,
 			check: func(p parser.Prescription) (bool, string) {
-				return false, "Ver.2/Ver.3 形式を検出しました。一部のフィールドはVer.4と異なる場合があります"
+				return false, "JAHISTC01〜03形式（Ver.1.0〜2.0）を検出しました。一部のフィールドはVer.2.1以降と異なる場合があります"
 			},
 		})
 	}

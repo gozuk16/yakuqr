@@ -22,49 +22,86 @@ func BuildText(p parser.Prescription, results []validator.ValidationResult) stri
 	sb.WriteString("=== PARSED DATA ===\n")
 	fmt.Fprintf(&sb, "バージョン: %s\n", p.Version)
 
-	if recs, ok := p.RecordMap["2"]; ok && len(recs) > 0 {
-		sb.WriteString("--- 患者情報 ---\n")
-		f := recs[0].Fields
-		if len(f) > 1 {
-			fmt.Fprintf(&sb, "氏名: %s\n", f[1])
-		}
-		if len(f) > 2 {
-			fmt.Fprintf(&sb, "カナ名: %s\n", f[2])
-		}
-		if len(f) > 3 {
-			fmt.Fprintf(&sb, "生年月日: %s\n", formatDate(f[3]))
-		}
-		if len(f) > 4 {
-			fmt.Fprintf(&sb, "性別: %s\n", formatSex(f[4]))
-		}
-	}
-
-	if recs, ok := p.RecordMap["1"]; ok && len(recs) > 0 {
-		sb.WriteString("--- 処方箋情報 ---\n")
-		f := recs[0].Fields
-		if len(f) > 2 {
-			fmt.Fprintf(&sb, "医療機関コード: %s\n", f[2])
-		}
-	}
-
-	if recs, ok := p.RecordMap["6"]; ok {
-		sb.WriteString("--- Rp情報 ---\n")
-		for i, rec := range recs {
-			f := rec.Fields
-			name, dose, unit, days := "", "", "", ""
-			if len(f) > 2 {
-				name = f[2]
+	if p.Version == parser.VersionUnknown {
+		sb.WriteString("\n")
+	} else if p.Version >= parser.Version2_1 {
+		// JAHISTC04以降: レコード1=患者情報, レコード201=薬品情報
+		if recs, ok := p.RecordMap["1"]; ok && len(recs) > 0 {
+			sb.WriteString("--- 患者情報 ---\n")
+			f := recs[0].Fields
+			if len(f) > 1 {
+				fmt.Fprintf(&sb, "氏名: %s\n", f[1])
 			}
 			if len(f) > 3 {
-				dose = f[3]
+				fmt.Fprintf(&sb, "生年月日: %s\n", formatDate(f[3]))
+			}
+			if len(f) > 2 {
+				fmt.Fprintf(&sb, "性別: %s\n", formatSex(f[2]))
+			}
+		}
+		if recs, ok := p.RecordMap["201"]; ok {
+			sb.WriteString("--- Rp情報 ---\n")
+			for i, rec := range recs {
+				f := rec.Fields
+				name, dose, unit := "", "", ""
+				if len(f) > 2 {
+					name = f[2]
+				}
+				if len(f) > 3 {
+					dose = f[3]
+				}
+				if len(f) > 4 {
+					unit = f[4]
+				}
+				fmt.Fprintf(&sb, "Rp%d: %s %s%s\n", i+1, name, dose, unit)
+			}
+		}
+	} else {
+		// JAHISTC01〜03: レコード2=患者情報, レコード6=薬品情報
+		if recs, ok := p.RecordMap["2"]; ok && len(recs) > 0 {
+			sb.WriteString("--- 患者情報 ---\n")
+			f := recs[0].Fields
+			if len(f) > 1 {
+				fmt.Fprintf(&sb, "氏名: %s\n", f[1])
+			}
+			if len(f) > 2 {
+				fmt.Fprintf(&sb, "カナ名: %s\n", f[2])
+			}
+			if len(f) > 3 {
+				fmt.Fprintf(&sb, "生年月日: %s\n", formatDate(f[3]))
 			}
 			if len(f) > 4 {
-				unit = f[4]
+				fmt.Fprintf(&sb, "性別: %s\n", formatSex(f[4]))
 			}
-			if len(f) > 6 {
-				days = f[6]
+		}
+
+		if recs, ok := p.RecordMap["1"]; ok && len(recs) > 0 {
+			sb.WriteString("--- 処方箋情報 ---\n")
+			f := recs[0].Fields
+			if len(f) > 2 {
+				fmt.Fprintf(&sb, "医療機関コード: %s\n", f[2])
 			}
-			fmt.Fprintf(&sb, "Rp%d: %s %s%s %s日分\n", i+1, name, dose, unit, days)
+		}
+
+		if recs, ok := p.RecordMap["6"]; ok {
+			sb.WriteString("--- Rp情報 ---\n")
+			for i, rec := range recs {
+				f := rec.Fields
+				name, dose, unit, days := "", "", "", ""
+				if len(f) > 2 {
+					name = f[2]
+				}
+				if len(f) > 3 {
+					dose = f[3]
+				}
+				if len(f) > 4 {
+					unit = f[4]
+				}
+				if len(f) > 6 {
+					days = f[6]
+				}
+				fmt.Fprintf(&sb, "Rp%d: %s %s%s %s日分\n", i+1, name, dose, unit, days)
+			}
 		}
 	}
 
