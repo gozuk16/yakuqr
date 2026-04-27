@@ -18,6 +18,8 @@ const (
 
 func (v Version) String() string {
 	switch v {
+	case VersionUnknown:
+		return "Unknown"
 	case Version1_0:
 		return "Ver.1.0"
 	case Version1_1:
