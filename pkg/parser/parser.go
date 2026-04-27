@@ -124,8 +124,9 @@ func parseRecords(combined string) []Record {
 }
 
 // detectVersion はJAHISバージョンを検出する。
-// Ver.4: JAHISTC ヘッダの2桁数字 ("04") を優先する。
-// Ver.2/Ver.3: ヘッダなしの場合、レコード種別1のフィールド2 ("2"/"3") を参照する。
+// JAHISTC ヘッダーがあれば番号から直接 Version(n) を返す（1桁・2桁どちらも対応）。
+// ヘッダーなしの旧フォーマットはレコード種別1のフィールド2（バージョン番号文字）を参照する。
+// どちらでも検出できない場合は VersionUnknown と ERROR メッセージを返す。
 func detectVersion(rm map[string][]Record, rawQRs []string) (Version, string) {
 	for _, raw := range rawQRs {
 		lines := splitLines(raw)
@@ -133,31 +134,29 @@ func detectVersion(rm map[string][]Record, rawQRs []string) (Version, string) {
 			continue
 		}
 		first := strings.TrimSpace(lines[0])
-		if strings.HasPrefix(first, "JAHISTC") && len(first) >= 9 {
-			switch first[7:9] {
-			case "02":
-				return Version2, ""
-			case "03":
-				return Version3, ""
-			case "04":
-				return Version4, ""
+		if strings.HasPrefix(first, "JAHISTC") {
+			header := first
+			if i := strings.Index(first, ","); i >= 0 {
+				header = first[:i]
+			}
+			numStr := strings.TrimLeft(header[7:], "0")
+			if n, err := strconv.Atoi(numStr); err == nil && n >= 1 && n <= 9 {
+				return Version(n), ""
 			}
 		}
 	}
-	if recs, ok := rm["1"]; ok && len(recs) > 0 {
-		fields := recs[0].Fields
-		if len(fields) >= 2 {
-			switch fields[1] {
-			case "2":
-				return Version2, ""
-			case "3":
-				return Version3, ""
-			case "4":
-				return Version4, ""
-			}
+	// ヘッダーなし旧フォーマット: レコード種別1のフィールド[1]がバージョン番号文字列
+	if recs, ok := rm["1"]; ok && len(recs) > 0 && len(recs[0].Fields) >= 2 {
+		switch recs[0].Fields[1] {
+		case "1":
+			return Version1_0, ""
+		case "2":
+			return Version1_1, ""
+		case "3":
+			return Version2_0, ""
 		}
 	}
-	return Version4, "[INFO] バージョンを検出できなかったため、Ver.4（最新版）として処理します"
+	return VersionUnknown, "[ERROR] バージョンを検出できませんでした"
 }
 
 // splitLines は改行コード（CR+LF / LF / CR）でテキストを分割する。
