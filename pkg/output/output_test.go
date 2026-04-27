@@ -22,8 +22,8 @@ func makeTestPrescription() (parser.Prescription, []validator.ValidationResult) 
 		"6": {records[2]},
 	}
 	p := parser.Prescription{
-		Version:   parser.Version2_1,
-		RawQRs:    []string{"1,4,131012345\n2,山田太郎,ヤマダタロウ,19700101,1"},
+		Version:   parser.Version1_1,
+		RawQRs:    []string{"1,2,131012345\n2,山田太郎,ヤマダタロウ,19700101,1"},
 		Records:   records,
 		RecordMap: rm,
 	}
@@ -96,5 +96,55 @@ func TestOutputPath_CollisionNumbered(t *testing.T) {
 	got := output.OutputPath("scan.png", "", existing)
 	if got != "scan_out_2.txt" {
 		t.Errorf("expected scan_out_2.txt, got %s", got)
+	}
+}
+
+func makeTestPrescriptionVer2_1() (parser.Prescription, []validator.ValidationResult) {
+	records := []parser.Record{
+		{Type: "1", Fields: []string{"1", "山田太郎", "1", "19700101", "100-0001"}},
+		{Type: "201", Fields: []string{"201", "1", "アムロジピン錠5mg", "1", "錠"}},
+	}
+	rm := map[string][]parser.Record{
+		"1":   {records[0]},
+		"201": {records[1]},
+	}
+	p := parser.Prescription{
+		Version:   parser.Version2_1,
+		RawQRs:    []string{"JAHISTC04,1\n1,山田太郎,1,19700101"},
+		Records:   records,
+		RecordMap: rm,
+	}
+	return p, nil
+}
+
+func TestBuildText_Ver2_1_ShowsRecord1AsPatient(t *testing.T) {
+	p, results := makeTestPrescriptionVer2_1()
+	text := output.BuildText(p, results)
+	if !strings.Contains(text, "山田太郎") {
+		t.Error("expected patient name from record 1 in Ver.2.1 output")
+	}
+}
+
+func makeTestPrescriptionUnknown() (parser.Prescription, []validator.ValidationResult) {
+	p := parser.Prescription{
+		Version:   parser.VersionUnknown,
+		RawQRs:    []string{"99,unknown"},
+		Records:   []parser.Record{},
+		RecordMap: map[string][]parser.Record{},
+	}
+	results := []validator.ValidationResult{
+		{Level: validator.LevelError, Field: "バージョン", Message: "バージョンを検出できませんでした"},
+	}
+	return p, results
+}
+
+func TestBuildText_UnknownVersion_NoPatientSection(t *testing.T) {
+	p, results := makeTestPrescriptionUnknown()
+	text := output.BuildText(p, results)
+	if strings.Contains(text, "--- 患者情報 ---") {
+		t.Error("should not output patient section for unknown version")
+	}
+	if !strings.Contains(text, "=== VALIDATION RESULTS ===") {
+		t.Error("expected validation section even for unknown version")
 	}
 }
