@@ -28,8 +28,8 @@ func unknownVersionRules() []rule {
 	}}
 }
 
-// ver4Rules は JAHIS Ver.4 (JAHISTC04 形式) のルールセット。
-// Ver.4 では患者情報がレコード1に、薬品情報がレコード201以上に格納される。
+// ver4Rules は JAHISTC04以降（Ver.2.1〜）のルールセット。
+// 患者情報はレコード1に、薬品情報はレコード201以上に格納される。
 func ver4Rules() []rule {
 	return []rule{
 		{
@@ -90,8 +90,8 @@ func ver4Rules() []rule {
 	}
 }
 
-// ver2ver3Rules は JAHIS Ver.2/Ver.3 のルールセット。
-// Ver.2/Ver.3 では患者情報がレコード2に、薬品情報がレコード6に格納される。
+// ver2ver3Rules は JAHISTC01〜03（Ver.1.0〜2.0）のルールセット。
+// 患者情報はレコード2に、薬品情報はレコード6に格納される。
 func ver2ver3Rules(v parser.Version) []rule {
 	base := []rule{
 		{
