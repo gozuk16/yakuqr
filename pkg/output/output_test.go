@@ -22,7 +22,7 @@ func makeTestPrescription() (parser.Prescription, []validator.ValidationResult) 
 		"6": {records[2]},
 	}
 	p := parser.Prescription{
-		Version:   parser.Version4,
+		Version:   parser.Version2_1,
 		RawQRs:    []string{"1,4,131012345\n2,山田太郎,ヤマダタロウ,19700101,1"},
 		Records:   records,
 		RecordMap: rm,

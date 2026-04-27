@@ -9,7 +9,7 @@ type rule struct {
 }
 
 func rulesFor(v parser.Version) []rule {
-	if v == parser.Version4 {
+	if v == parser.Version2_1 {
 		return ver4Rules()
 	}
 	return ver2ver3Rules(v)
@@ -147,7 +147,7 @@ func ver2ver3Rules(v parser.Version) []rule {
 		},
 	}
 
-	if v == parser.Version2 || v == parser.Version3 {
+	if v == parser.Version1_1 || v == parser.Version2_0 {
 		base = append(base, rule{
 			field: "バージョン互換性",
 			level: LevelInfo,

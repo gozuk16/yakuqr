@@ -18,7 +18,7 @@ func makeMinimalPrescriptionVer4() parser.Prescription {
 		"1":   {records[0]},
 		"201": {records[1]},
 	}
-	return parser.Prescription{Version: parser.Version4, Records: records, RecordMap: rm}
+	return parser.Prescription{Version: parser.Version2_1, Records: records, RecordMap: rm}
 }
 
 // makeMinimalPrescriptionVer2 は Ver.2 形式の最小限の処方箋を生成する。
@@ -34,7 +34,7 @@ func makeMinimalPrescriptionVer2() parser.Prescription {
 		"2": {records[1]},
 		"6": {records[2]},
 	}
-	return parser.Prescription{Version: parser.Version2, Records: records, RecordMap: rm}
+	return parser.Prescription{Version: parser.Version1_1, Records: records, RecordMap: rm}
 }
 
 func TestValidate_ValidPrescription_NoErrors(t *testing.T) {

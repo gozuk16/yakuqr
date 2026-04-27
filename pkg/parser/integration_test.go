@@ -21,9 +21,9 @@ var pipelineCases = []struct {
 	wantVersion parser.Version
 	wantRecord  string
 }{
-	{"qr_ver4_single.png", parser.Version4, "1"},
-	{"qr_ver2_single.png", parser.Version2, "2"},
-	{"qr_ver3_single.png", parser.Version3, "2"},
+	{"qr_ver4_single.png", parser.Version2_1, "1"},
+	{"qr_ver2_single.png", parser.Version1_1, "2"},
+	{"qr_ver3_single.png", parser.Version2_0, "2"},
 }
 
 func TestPipeline_DecodeParseValidate(t *testing.T) {
@@ -78,8 +78,8 @@ func TestPipeline_SplitQR_Combined(t *testing.T) {
 		t.Logf("parse message: %s", m)
 	}
 
-	if p.Version != parser.Version4 {
-		t.Errorf("version: want Version4, got %v", p.Version)
+	if p.Version != parser.Version2_1 {
+		t.Errorf("version: want Version2_1, got %v", p.Version)
 	}
 	if _, ok := p.RecordMap["201"]; !ok {
 		t.Error("RecordMap[\"201\"] not found — split QR combination may have failed")

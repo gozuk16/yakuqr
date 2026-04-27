@@ -23,8 +23,8 @@ func readTestdata(name string) string {
 func TestParse_SingleQR_Version(t *testing.T) {
 	raw := readTestdata("ver4_single.txt")
 	p, _ := parser.Parse([]string{raw})
-	if p.Version != parser.Version4 {
-		t.Errorf("expected Version4, got %v", p.Version)
+	if p.Version != parser.Version2_1 {
+		t.Errorf("expected Version2_1, got %v", p.Version)
 	}
 }
 
@@ -71,32 +71,64 @@ func TestParse_SplitQR_Missing(t *testing.T) {
 func TestParse_Ver3_DetectsVersion(t *testing.T) {
 	raw := readTestdata("ver3_single.txt")
 	p, _ := parser.Parse([]string{raw})
-	if p.Version != parser.Version3 {
-		t.Errorf("expected Version3, got %v", p.Version)
+	if p.Version != parser.Version2_0 {
+		t.Errorf("expected Version2_0, got %v", p.Version)
 	}
 }
 
 func TestParse_Ver2_DetectsVersion(t *testing.T) {
 	raw := readTestdata("ver2_single.txt")
 	p, _ := parser.Parse([]string{raw})
-	if p.Version != parser.Version2 {
-		t.Errorf("expected Version2, got %v", p.Version)
+	if p.Version != parser.Version1_1 {
+		t.Errorf("expected Version1_1, got %v", p.Version)
 	}
 }
 
-func TestParse_VersionUnknown_FallsBackToVer4(t *testing.T) {
+func TestParse_VersionUnknown_ReturnsError(t *testing.T) {
 	raw := "99,unknown\n2,テスト,テスト,19900101,1,,,"
 	p, msgs := parser.Parse([]string{raw})
-	if p.Version != parser.Version4 {
-		t.Errorf("expected fallback to Version4, got %v", p.Version)
+	if p.Version != parser.VersionUnknown {
+		t.Errorf("expected VersionUnknown, got %v", p.Version)
 	}
 	found := false
 	for _, msg := range msgs {
-		if strings.Contains(msg, "Ver.4") {
+		if strings.Contains(msg, "[ERROR]") && strings.Contains(msg, "バージョン") {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("expected INFO about version fallback")
+		t.Error("expected ERROR message about version detection failure")
+	}
+}
+
+func TestParse_JAHISTC01_DetectsVersion1_0(t *testing.T) {
+	raw := readTestdata("ver1_0_single.txt")
+	p, _ := parser.Parse([]string{raw})
+	if p.Version != parser.Version1_0 {
+		t.Errorf("expected Version1_0, got %v", p.Version)
+	}
+}
+
+func TestParse_JAHISTC1_1digit_DetectsVersion1_0(t *testing.T) {
+	raw := readTestdata("ver1_0_1digit.txt")
+	p, _ := parser.Parse([]string{raw})
+	if p.Version != parser.Version1_0 {
+		t.Errorf("expected Version1_0 from 1-digit JAHISTC header, got %v", p.Version)
+	}
+}
+
+func TestParse_JAHISTC08_DetectsVersion2_5(t *testing.T) {
+	raw := readTestdata("ver2_5_single.txt")
+	p, _ := parser.Parse([]string{raw})
+	if p.Version != parser.Version2_5 {
+		t.Errorf("expected Version2_5, got %v", p.Version)
+	}
+}
+
+func TestParse_JAHISTC09_DetectsVersion2_6(t *testing.T) {
+	raw := readTestdata("ver2_6_single.txt")
+	p, _ := parser.Parse([]string{raw})
+	if p.Version != parser.Version2_6 {
+		t.Errorf("expected Version2_6, got %v", p.Version)
 	}
 }
