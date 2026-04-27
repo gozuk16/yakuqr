@@ -1,6 +1,7 @@
 package validator_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gozuk16/yakuqr/pkg/parser"
@@ -91,5 +92,23 @@ func TestValidate_Ver2_ReturnsInfo(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected INFO for Ver.2")
+	}
+}
+
+func TestValidate_UnknownVersion_ReturnsError(t *testing.T) {
+	p := parser.Prescription{
+		Version:   parser.VersionUnknown,
+		Records:   []parser.Record{},
+		RecordMap: map[string][]parser.Record{},
+	}
+	results := validator.Validate(p)
+	found := false
+	for _, r := range results {
+		if r.Level == validator.LevelError && strings.Contains(r.Message, "バージョン") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected ERROR for unknown version")
 	}
 }

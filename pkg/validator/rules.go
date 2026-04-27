@@ -9,10 +9,23 @@ type rule struct {
 }
 
 func rulesFor(v parser.Version) []rule {
-	if v == parser.Version2_1 {
+	if v == parser.VersionUnknown {
+		return unknownVersionRules()
+	}
+	if v >= parser.Version2_1 {
 		return ver4Rules()
 	}
 	return ver2ver3Rules(v)
+}
+
+func unknownVersionRules() []rule {
+	return []rule{{
+		field: "バージョン",
+		level: LevelError,
+		check: func(p parser.Prescription) (bool, string) {
+			return false, "バージョンを検出できませんでした。QRコードの形式を確認してください"
+		},
+	}}
 }
 
 // ver4Rules は JAHIS Ver.4 (JAHISTC04 形式) のルールセット。
@@ -147,12 +160,12 @@ func ver2ver3Rules(v parser.Version) []rule {
 		},
 	}
 
-	if v == parser.Version1_1 || v == parser.Version2_0 {
+	if v <= parser.Version2_0 {
 		base = append(base, rule{
 			field: "バージョン互換性",
 			level: LevelInfo,
 			check: func(p parser.Prescription) (bool, string) {
-				return false, "Ver.2/Ver.3 形式を検出しました。一部のフィールドはVer.4と異なる場合があります"
+				return false, "JAHISTC01〜03形式（Ver.1.0〜2.0）を検出しました。一部のフィールドはVer.2.1以降と異なる場合があります"
 			},
 		})
 	}
