@@ -87,10 +87,65 @@ func detectFileType(path string) (string, error) {
 	return "", fmt.Errorf("cannot determine file type: %s", path)
 }
 
+// rawEntry は1枚のQRコードの生デコード結果（ギャップ補完前）を表す。
+type rawEntry struct {
+	text   string
+	err    error
+	seqNum int // SA シーケンス番号（raw値: position<<4 | total-1）。非SA は -1
+	pointY float64
+	pointX float64
+}
+
+// decodeRawEntries はビットマップ内の全QRコードパターンを検出・デコードし、
+// SA マージもギャップ補完もせず生エントリをそのまま返す。
+func decodeRawEntries(bmp *gozxing.BinaryBitmap) []rawEntry {
+	matrix, err := bmp.GetBlackMatrix()
+	if err != nil {
+		return nil
+	}
+	detectorResults, err := gozxingdetector.NewMultiDetector(matrix).DetectMulti(nil)
+	if err != nil || len(detectorResults) == 0 {
+		return nil
+	}
+
+	dec := gozxingqr.NewQRCodeReader().(*gozxingqr.QRCodeReader).GetDecoder()
+	entries := make([]rawEntry, 0, len(detectorResults))
+
+	for _, det := range detectorResults {
+		pts := det.GetPoints()
+		var py, px float64
+		if len(pts) > 0 {
+			py = float64(pts[0].GetY())
+			px = float64(pts[0].GetX())
+		}
+		decoderResult, decErr := dec.Decode(det.GetBits(), nil)
+		if decErr != nil {
+			entries = append(entries, rawEntry{err: decErr, seqNum: -1, pointY: py, pointX: px})
+			continue
+		}
+		if decoderResult.HasStructuredAppend() {
+			entries = append(entries, rawEntry{
+				text:   decoderResult.GetText(),
+				seqNum: decoderResult.GetStructuredAppendSequenceNumber(),
+				pointY: py,
+				pointX: px,
+			})
+		} else {
+			entries = append(entries, rawEntry{
+				text:   decoderResult.GetText(),
+				seqNum: -1,
+				pointY: py,
+				pointX: px,
+			})
+		}
+	}
+	return entries
+}
+
 // decodeImage は画像ファイルからQRコードをデコードする。
-// 解像度が低い画像（スクリーンショット等）ではQRコードを見落とすことがあるため、
-// 1x→2x→3x と段階的にスケールアップし、最もテキスト量が多い結果を採用する。
-// QR Structured Append (SA) 形式の場合、各物理QRコードを個別に返す（SAマージしない）。
+// 解像度が低い画像（スクリーンショット等）では 1x→2x→3x と段階的にスケールアップし、
+// SA QR の各ポジションについて成功したスケールの結果を採用する（ポジション単位リトライ）。
+// 全スケール試行後に欠落ポジションを1回ギャップ補完して返す。
 func decodeImage(path string) ([]QRResult, []DecodeError) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -103,12 +158,6 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 		return nil, []DecodeError{{Err: fmt.Errorf("decode image: %w", err)}}
 	}
 
-	var bestResults []QRResult
-	bestTotal := 0
-
-	// 元画像が既に十分大きければスケールアップは不要。
-	// スクリーンショット等の小さい画像（最長辺<3000px）は段階的にスケールアップし
-	// 最もテキスト量が多い結果を採用する。
 	b := img.Bounds()
 	maxDim := b.Dx()
 	if b.Dy() > maxDim {
@@ -119,83 +168,50 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 		scales = []int{1, 2, 3}
 	}
 
+	// SA QR: ポジション→テキスト（最初に成功したスケールの結果を採用）
+	saByPos := make(map[int]string)
+	saTotal := 0
+
+	// 非SA QR: テキストで重複排除しつつ位置情報を保持
+	type nonSAEntry struct {
+		text   string
+		pointY float64
+		pointX float64
+	}
+	nonSASeen := make(map[string]bool)
+	var nonSAEntries []nonSAEntry
+
 	for _, scale := range scales {
 		target := scaleImage(img, scale)
 		bmp, err := gozxing.NewBinaryBitmapFromImage(target)
 		if err != nil {
 			continue
 		}
-		results := decodeQRsIndividual(bmp)
-		total := 0
-		for _, r := range results {
-			total += len(r.Text)
-		}
-		if total > bestTotal {
-			bestTotal = total
-			bestResults = results
-		}
-	}
-
-	return bestResults, nil
-}
-
-// decodeQRsIndividual はビットマップ内の各QRコードを個別にデコードして返す。
-// QR Structured Append (SA) 形式のQRコードはシーケンス番号順に並べ替え、
-// 欠落した位置には Err を持つエントリを挿入する。
-// SAマージは行わず各物理QRコードのテキストを個別に返す。
-func decodeQRsIndividual(bmp *gozxing.BinaryBitmap) []QRResult {
-	matrix, err := bmp.GetBlackMatrix()
-	if err != nil {
-		return nil
-	}
-
-	detectorResults, err := gozxingdetector.NewMultiDetector(matrix).DetectMulti(nil)
-	if err != nil || len(detectorResults) == 0 {
-		return nil
-	}
-
-	dec := gozxingqr.NewQRCodeReader().(*gozxingqr.QRCodeReader).GetDecoder()
-
-	type entry struct {
-		text   string
-		err    error
-		seqNum int    // SA シーケンス番号（raw 値）。非SA は -1
-		pointY float64
-		pointX float64
-	}
-
-	var saEntries []entry
-	var nonSAEntries []entry
-	var failedEntries []entry // デコード失敗（SA かどうか不明）
-
-	for _, det := range detectorResults {
-		pts := det.GetPoints()
-		var py, px float64
-		if len(pts) > 0 {
-			py = float64(pts[0].GetY())
-			px = float64(pts[0].GetX())
-		}
-
-		decoderResult, decErr := dec.Decode(det.GetBits(), nil)
-		if decErr != nil {
-			failedEntries = append(failedEntries, entry{err: decErr, seqNum: -1, pointY: py, pointX: px})
-			continue
-		}
-
-		if decoderResult.HasStructuredAppend() {
-			saEntries = append(saEntries, entry{
-				text:   decoderResult.GetText(),
-				seqNum: decoderResult.GetStructuredAppendSequenceNumber(),
-				pointY: py,
-				pointX: px,
-			})
-		} else {
-			nonSAEntries = append(nonSAEntries, entry{
-				text:   decoderResult.GetText(),
-				seqNum: -1,
-				pointY: py,
-				pointX: px,
-			})
+		for _, e := range decodeRawEntries(bmp) {
+			if e.err != nil || e.seqNum < 0 && e.text == "" {
+				continue // デコード失敗は個別スケールでは無視（全スケール後にギャップ補完）
+			}
+			if e.seqNum >= 0 {
+				// SA QR: まだ成功していないポジションなら採用
+				pos := e.seqNum >> 4
+				total := (e.seqNum & 0x0F) + 1
+				if saTotal == 0 {
+					saTotal = total
+				}
+				if _, ok := saByPos[pos]; !ok {
+					saByPos[pos] = e.text
+				}
+			} else {
+				// 非SA QR: テキストが同じなら同一QRとして重複排除
+				if !nonSASeen[e.text] {
+					nonSASeen[e.text] = true
+					nonSAEntries = append(nonSAEntries, nonSAEntry{
+						text:   e.text,
+						pointY: e.pointY,
+						pointX: e.pointX,
+					})
+				}
+			}
 		}
 	}
 
@@ -207,60 +223,25 @@ func decodeQRsIndividual(bmp *gozxing.BinaryBitmap) []QRResult {
 		return nonSAEntries[i].pointX < nonSAEntries[j].pointX
 	})
 
-	if len(saEntries) == 0 {
-		// SA QR なし: 非SA + 失敗のみ返す
-		results := make([]QRResult, 0, len(nonSAEntries)+len(failedEntries))
-		for _, e := range nonSAEntries {
-			results = append(results, QRResult{Text: e.text})
-		}
-		for _, e := range failedEntries {
-			results = append(results, QRResult{Err: e.err})
-		}
-		return results
-	}
-
-	// SA QR をシーケンス番号順に並べ替え
-	sort.Slice(saEntries, func(i, j int) bool {
-		return saEntries[i].seqNum < saEntries[j].seqNum
-	})
-
-	// QR 規格: seqNum = (position << 4) | (total - 1)
-	total := (saEntries[0].seqNum & 0x0F) + 1
-	byPos := make(map[int]entry, len(saEntries))
-	for _, e := range saEntries {
-		pos := e.seqNum >> 4
-		byPos[pos] = e
-	}
-
-	// 欠落位置を補完しながら結果リストを構築
-	results := make([]QRResult, 0, total+len(nonSAEntries))
-	for pos := 0; pos < total; pos++ {
-		if e, ok := byPos[pos]; ok {
-			results = append(results, QRResult{Text: e.text})
-		} else {
-			// 欠落: デコード失敗エントリがあれば割り当て、なければ未検出
-			var gapErr error
-			if len(failedEntries) > 0 {
-				gapErr = failedEntries[0].err
-				failedEntries = failedEntries[1:]
+	if saTotal > 0 {
+		// SA QR: 全ポジションを順に並べ、読み取れなかった位置はエラーエントリを挿入
+		results := make([]QRResult, saTotal)
+		for pos := 0; pos < saTotal; pos++ {
+			if text, ok := saByPos[pos]; ok {
+				results[pos] = QRResult{Text: text}
 			} else {
-				gapErr = fmt.Errorf("QRコードを検出できませんでした")
+				results[pos] = QRResult{Err: fmt.Errorf("QRコードを読み取れませんでした（全スケールで失敗）")}
 			}
-			results = append(results, QRResult{Err: gapErr})
 		}
+		return results, nil
 	}
 
-	// 残余の失敗エントリ（位置不明）
-	for _, e := range failedEntries {
-		results = append(results, QRResult{Err: e.err})
+	// 非SA QR のみ
+	results := make([]QRResult, len(nonSAEntries))
+	for i, e := range nonSAEntries {
+		results[i] = QRResult{Text: e.text}
 	}
-
-	// 非SA QR を末尾に追加
-	for _, e := range nonSAEntries {
-		results = append(results, QRResult{Text: e.text})
-	}
-
-	return results
+	return results, nil
 }
 
 // scaleImage は画像を整数倍にスケールアップする（scale=1 で元画像を返す）。
