@@ -58,8 +58,10 @@ func checkGarbledData(p parser.Prescription) []ValidationResult {
 
 // findQRForRecord はレコードのCSV行がどのRawQRのテキストに含まれるかを探す。
 // 見つかった場合はQR番号（1始まり）とtrueを返す。
+// QR境界で行が切断されている場合、再構成行の前方一致でフォールバック検索する。
 func findQRForRecord(r parser.Record, rawQRs []parser.RawQR) (int, bool) {
 	line := strings.Join(r.Fields, ",")
+	// 完全一致検索
 	for i, raw := range rawQRs {
 		if raw.ErrMsg != "" {
 			continue
@@ -68,7 +70,30 @@ func findQRForRecord(r parser.Record, rawQRs []parser.RawQR) (int, bool) {
 			return i + 1, true
 		}
 	}
+	// 前方一致フォールバック: QR境界で切断されたレコードを検出する。
+	// 再構成行がQR内の行の続きであれば、そのQRを起源と判定する。
+	typePrefix := r.Type + ","
+	for i, raw := range rawQRs {
+		if raw.ErrMsg != "" {
+			continue
+		}
+		for _, rawLine := range splitOnNewlines(raw.Text) {
+			if !strings.HasPrefix(rawLine, typePrefix) {
+				continue
+			}
+			// rawLine が再構成行の先頭部分であれば、このQRが起源
+			if len(rawLine) > len(typePrefix) && strings.HasPrefix(line, rawLine) {
+				return i + 1, true
+			}
+		}
+	}
 	return 0, false
+}
+
+func splitOnNewlines(s string) []string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.Split(s, "\n")
 }
 
 // checkOrphanRecords は数字以外のレコード種別（空文字を含む）を検出し WARNING を返す。
