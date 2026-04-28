@@ -43,16 +43,16 @@ func Parse(rawQRs []RawQR) (Prescription, []string) {
 	return p, msgs
 }
 
+type qrPart struct {
+	content string
+	seq     int
+}
+
 // combineQRs は分割QRを結合して単一のレコード文字列を返す。
 // JAHIS形式: 各QRの先頭行が "JAHISTC{ver},{seq}" (例: "JAHISTC04,1")
+// 911分割: 全QRが同一seqかつ末尾に 911 レコードを持つ累積分割形式。
 func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 	var msgs []string
-
-	type qrPart struct {
-		content string
-		seq     int
-	}
-
 	var parts []qrPart
 	var nonSplit []string
 
@@ -80,7 +80,25 @@ func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 	}
 
 	if len(parts) > 0 {
-		// 連番の最大値を総数とする
+		// 911分割: 全QRが同一 JAHISTC seq（通常すべて1）で 911レコードを持つ場合。
+		// 累積型のため最も連番が大きいQRの本文を採用し、911行を除去する。
+		if allSameSeq(parts) && len(parts) > 1 {
+			if sp, ok := parse911Parts(parts); ok {
+				sort.Slice(sp, func(i, j int) bool { return sp[i].current < sp[j].current })
+				last := sp[len(sp)-1]
+				content := remove911Lines(last.content)
+				if len(nonSplit) > 0 {
+					content += strings.Join(nonSplit, "")
+				}
+				var infos []SplitInfo
+				for _, s := range sp {
+					infos = append(infos, SplitInfo{Current: s.current, Total: s.total})
+				}
+				return content, infos, msgs
+			}
+		}
+
+		// JAHISTC連番分割: 各QRが異なる seq を持つ通常の分割形式。
 		maxSeq := 0
 		for _, pt := range parts {
 			if pt.seq > maxSeq {
@@ -120,6 +138,75 @@ func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 	}
 
 	return strings.Join(nonSplit, "\n"), nil, msgs
+}
+
+// allSameSeq は全パーツが同じ seq 値を持つかどうかを返す。
+func allSameSeq(parts []qrPart) bool {
+	if len(parts) < 2 {
+		return false
+	}
+	first := parts[0].seq
+	for _, p := range parts[1:] {
+		if p.seq != first {
+			return false
+		}
+	}
+	return true
+}
+
+type part911 struct {
+	content string
+	dataID  string
+	total   int
+	current int
+}
+
+// parse911Parts は各パーツから 911 レコードを探す。
+// 全パーツに 911 レコードがあれば part911 スライスを返す。
+// 1つでも 911 がないパーツがあれば false を返す。
+func parse911Parts(parts []qrPart) ([]part911, bool) {
+	var result []part911
+	for _, pt := range parts {
+		found := false
+		for _, line := range splitLines(pt.content) {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "911,") {
+				continue
+			}
+			fields := strings.Split(line, ",")
+			if len(fields) < 4 {
+				continue
+			}
+			total, err1 := strconv.Atoi(strings.TrimSpace(fields[2]))
+			current, err2 := strconv.Atoi(strings.TrimSpace(fields[3]))
+			if err1 != nil || err2 != nil {
+				continue
+			}
+			result = append(result, part911{
+				content: pt.content,
+				dataID:  strings.TrimSpace(fields[1]),
+				total:   total,
+				current: current,
+			})
+			found = true
+			break
+		}
+		if !found {
+			return nil, false
+		}
+	}
+	return result, len(result) > 0
+}
+
+// remove911Lines は文字列から 911 レコード行を除去して返す。
+func remove911Lines(content string) string {
+	var kept []string
+	for _, line := range splitLines(content) {
+		if !strings.HasPrefix(strings.TrimSpace(line), "911,") {
+			kept = append(kept, line)
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 // parseRecords は結合済みレコード文字列を[]Recordに変換する。

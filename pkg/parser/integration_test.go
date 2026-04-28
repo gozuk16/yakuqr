@@ -105,3 +105,53 @@ func TestPipeline_SplitQR_Combined(t *testing.T) {
 		}
 	}
 }
+
+func TestPipeline_911Split_Combined(t *testing.T) {
+	path1 := generatedImagePath("qr_ver2_6_911split_1.png")
+	path2 := generatedImagePath("qr_ver2_6_911split_2.png")
+
+	qrs1, errs1 := decoder.DecodeFile(path1)
+	if len(errs1) > 0 {
+		t.Fatalf("decode 911split_1 errors: %v", errs1)
+	}
+	qrs2, errs2 := decoder.DecodeFile(path2)
+	if len(errs2) > 0 {
+		t.Fatalf("decode 911split_2 errors: %v", errs2)
+	}
+
+	allQRs := toRawQRs(append(qrs1, qrs2...))
+	p, msgs := parser.Parse(allQRs)
+	for _, m := range msgs {
+		t.Logf("parse message: %s", m)
+	}
+
+	if p.Version != parser.Version2_6 {
+		t.Errorf("version: want Version2_6, got %v", p.Version)
+	}
+
+	// 911分割: QR2（累積）から両方のRpが取得できること
+	rp201 := p.RecordMap["201"]
+	if len(rp201) < 2 {
+		t.Errorf("201レコード数: want >= 2 (Rp1+Rp2), got %d", len(rp201))
+	}
+
+	// 911レコード自体はRecordMapに残らないこと
+	if _, ok := p.RecordMap["911"]; ok {
+		t.Error("911レコードがRecordMapに残っている（remove911Linesが機能していない）")
+	}
+
+	// SplitInfosに911分割情報が格納されていること
+	if len(p.SplitInfos) != 2 {
+		t.Errorf("SplitInfos len: want 2, got %d", len(p.SplitInfos))
+	}
+	if p.SplitInfos[0].Total != 2 || p.SplitInfos[1].Total != 2 {
+		t.Errorf("SplitInfos.Total: want 2, got %v", p.SplitInfos)
+	}
+
+	results := validator.Validate(p)
+	for _, r := range results {
+		if r.Level == validator.LevelError {
+			t.Errorf("unexpected validation ERROR: %v", r)
+		}
+	}
+}
