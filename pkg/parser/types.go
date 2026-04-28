@@ -12,8 +12,8 @@ const (
 	Version2_2     Version = 5
 	Version2_3     Version = 6
 	Version2_4     Version = 7
-	Version2_5     Version = 8
-	Version2_6     Version = 9
+	// Version2_5 は欠番。JAHISTC08 は Ver.2.6 に対応するため Ver.2.5 は使用されない。
+	Version2_6 Version = 8
 )
 
 func (v Version) String() string {
@@ -34,8 +34,6 @@ func (v Version) String() string {
 		return "Ver.2.3"
 	case Version2_4:
 		return "Ver.2.4"
-	case Version2_5:
-		return "Ver.2.5"
 	case Version2_6:
 		return "Ver.2.6"
 	default:

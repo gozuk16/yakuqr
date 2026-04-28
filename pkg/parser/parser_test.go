@@ -117,15 +117,7 @@ func TestParse_JAHISTC1_1digit_DetectsVersion1_0(t *testing.T) {
 	}
 }
 
-func TestParse_JAHISTC08_DetectsVersion2_5(t *testing.T) {
-	raw := readTestdata("ver2_5_single.txt")
-	p, _ := parser.Parse([]string{raw})
-	if p.Version != parser.Version2_5 {
-		t.Errorf("expected Version2_5, got %v", p.Version)
-	}
-}
-
-func TestParse_JAHISTC09_DetectsVersion2_6(t *testing.T) {
+func TestParse_JAHISTC08_DetectsVersion2_6(t *testing.T) {
 	raw := readTestdata("ver2_6_single.txt")
 	p, _ := parser.Parse([]string{raw})
 	if p.Version != parser.Version2_6 {
