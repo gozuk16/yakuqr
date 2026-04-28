@@ -112,6 +112,20 @@ func checkOrphanRecords(p parser.Prescription) []ValidationResult {
 	return results
 }
 
+// checkSplit911Incomplete は RecordMap に 911 レコードが残存する場合 WARNING を返す。
+// 911 レコードは通常 parse911Parts によって除去されるが、
+// 分割 QR が 1 枚しかスキャンできなかった場合は除去されずに残る。
+func checkSplit911Incomplete(p parser.Prescription) []ValidationResult {
+	if _, ok := p.RecordMap["911"]; !ok {
+		return nil
+	}
+	return []ValidationResult{{
+		Level:   LevelWarning,
+		Field:   "分割制御レコード 911",
+		Message: "分割制御レコード（911）が検出されました。分割QRの一部が未取得の可能性があります",
+	}}
+}
+
 func isNumericType(s string) bool {
 	if s == "" {
 		return false
