@@ -13,6 +13,8 @@ import (
 
 	"github.com/makiuchi-d/gozxing"
 	gozxingmulti "github.com/makiuchi-d/gozxing/multi/qrcode"
+	gozxingdetector "github.com/makiuchi-d/gozxing/multi/qrcode/detector"
+	gozxingqr "github.com/makiuchi-d/gozxing/qrcode"
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
 	xdraw "golang.org/x/image/draw"
 )
@@ -79,6 +81,7 @@ func detectFileType(path string) (string, error) {
 // decodeImage は画像ファイルからQRコードをデコードする。
 // 解像度が低い画像（スクリーンショット等）ではQRコードを見落とすことがあるため、
 // 1x→2x→3x と段階的にスケールアップし、最もテキスト量が多い結果を採用する。
+// QR Structured Append (SA) 形式の場合、各物理QRコードを個別に返す（SAマージしない）。
 func decodeImage(path string) ([]string, []DecodeError) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -90,8 +93,6 @@ func decodeImage(path string) ([]string, []DecodeError) {
 	if err != nil {
 		return nil, []DecodeError{{Err: fmt.Errorf("decode image: %w", err)}}
 	}
-
-	reader := gozxingmulti.NewQRCodeMultiReader()
 
 	var bestTexts []string
 	bestTotal := 0
@@ -115,30 +116,10 @@ func decodeImage(path string) ([]string, []DecodeError) {
 		if err != nil {
 			continue
 		}
-		results, err := reader.DecodeMultiple(bmp, nil)
-		if err != nil {
-			continue
-		}
-
-		sort.Slice(results, func(i, j int) bool {
-			pi := results[i].GetResultPoints()
-			pj := results[j].GetResultPoints()
-			if len(pi) == 0 || len(pj) == 0 {
-				return false
-			}
-			yi := pi[0].GetY()
-			yj := pj[0].GetY()
-			if absF64(yi-yj) > 10 {
-				return yi < yj
-			}
-			return pi[0].GetX() < pj[0].GetX()
-		})
-
+		texts := decodeQRsIndividual(bmp)
 		total := 0
-		var texts []string
-		for _, r := range results {
-			texts = append(texts, r.GetText())
-			total += len(r.GetText())
+		for _, t := range texts {
+			total += len(t)
 		}
 		if total > bestTotal {
 			bestTotal = total
@@ -147,6 +128,81 @@ func decodeImage(path string) ([]string, []DecodeError) {
 	}
 
 	return bestTexts, nil
+}
+
+// decodeQRsIndividual はビットマップ内の各QRコードを個別にデコードして返す。
+// QR Structured Append (SA) 形式のQRコードはシーケンス番号順に並べ替えるが、
+// SAマージは行わず各物理QRコードのテキストを個別に返す。
+func decodeQRsIndividual(bmp *gozxing.BinaryBitmap) []string {
+	matrix, err := bmp.GetBlackMatrix()
+	if err != nil {
+		return nil
+	}
+
+	detectorResults, err := gozxingdetector.NewMultiDetector(matrix).DetectMulti(nil)
+	if err != nil || len(detectorResults) == 0 {
+		return nil
+	}
+
+	dec := gozxingqr.NewQRCodeReader().(*gozxingqr.QRCodeReader).GetDecoder()
+
+	type qrEntry struct {
+		text   string
+		seqNum int
+		isSA   bool
+		pointY float64
+		pointX float64
+	}
+
+	var saEntries []qrEntry
+	var nonSAEntries []qrEntry
+
+	for _, det := range detectorResults {
+		decoderResult, err := dec.Decode(det.GetBits(), nil)
+		if err != nil {
+			continue
+		}
+		pts := det.GetPoints()
+		var py, px float64
+		if len(pts) > 0 {
+			py = float64(pts[0].GetY())
+			px = float64(pts[0].GetX())
+		}
+		if decoderResult.HasStructuredAppend() {
+			saEntries = append(saEntries, qrEntry{
+				text:   decoderResult.GetText(),
+				seqNum: decoderResult.GetStructuredAppendSequenceNumber(),
+				isSA:   true,
+				pointY: py,
+				pointX: px,
+			})
+		} else {
+			nonSAEntries = append(nonSAEntries, qrEntry{
+				text:   decoderResult.GetText(),
+				pointY: py,
+				pointX: px,
+			})
+		}
+	}
+
+	sort.Slice(saEntries, func(i, j int) bool {
+		return saEntries[i].seqNum < saEntries[j].seqNum
+	})
+	sort.Slice(nonSAEntries, func(i, j int) bool {
+		if absF64(nonSAEntries[i].pointY-nonSAEntries[j].pointY) > 10 {
+			return nonSAEntries[i].pointY < nonSAEntries[j].pointY
+		}
+		return nonSAEntries[i].pointX < nonSAEntries[j].pointX
+	})
+
+	texts := make([]string, 0, len(saEntries)+len(nonSAEntries))
+	for _, e := range saEntries {
+		texts = append(texts, e.text)
+	}
+	for _, e := range nonSAEntries {
+		texts = append(texts, e.text)
+	}
+	return texts
 }
 
 // scaleImage は画像を整数倍にスケールアップする（scale=1 で元画像を返す）。
