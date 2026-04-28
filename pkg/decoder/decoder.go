@@ -181,6 +181,10 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 	nonSASeen := make(map[string]bool)
 	var nonSAEntries []nonSAEntry
 
+	// デコード失敗エラーをメッセージで重複排除して収集（ギャップの理由表示用）
+	decodeErrSeen := make(map[string]bool)
+	var decodeErrs []error
+
 	for _, scale := range scales {
 		target := scaleImage(img, scale)
 		bmp, err := gozxing.NewBinaryBitmapFromImage(target)
@@ -188,8 +192,14 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 			continue
 		}
 		for _, e := range decodeRawEntries(bmp) {
-			if e.err != nil || e.seqNum < 0 && e.text == "" {
-				continue // デコード失敗は個別スケールでは無視（全スケール後にギャップ補完）
+			if e.err != nil {
+				// 同じエラーメッセージは重複排除（同一QRが複数スケールで失敗した場合）
+				msg := e.err.Error()
+				if !decodeErrSeen[msg] {
+					decodeErrSeen[msg] = true
+					decodeErrs = append(decodeErrs, e.err)
+				}
+				continue
 			}
 			if e.seqNum >= 0 {
 				// SA QR: まだ成功していないポジションなら採用
@@ -226,11 +236,20 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 	if saTotal > 0 {
 		// SA QR: 全ポジションを順に並べ、読み取れなかった位置はエラーエントリを挿入
 		results := make([]QRResult, saTotal)
+		gapErrIdx := 0
 		for pos := 0; pos < saTotal; pos++ {
 			if text, ok := saByPos[pos]; ok {
 				results[pos] = QRResult{Text: text}
 			} else {
-				results[pos] = QRResult{Err: fmt.Errorf("QRコードを読み取れませんでした（全スケールで失敗）")}
+				// 収集したデコード例外があれば割り当て（重複排除済みなので1種類ずつ）
+				var gapErr error
+				if gapErrIdx < len(decodeErrs) {
+					gapErr = decodeErrs[gapErrIdx]
+					gapErrIdx++
+				} else {
+					gapErr = fmt.Errorf("QRコードを検出できませんでした")
+				}
+				results[pos] = QRResult{Err: gapErr}
 			}
 		}
 		return results, nil
