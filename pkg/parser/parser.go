@@ -109,7 +109,14 @@ func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 		for _, pt := range parts {
 			infos = append(infos, SplitInfo{Current: pt.seq, Total: maxSeq})
 		}
-		return strings.Join(sorted, "\n"), infos, msgs
+
+		combined := strings.Join(sorted, "\n")
+		// JAHISTC ヘッダーを持たない SA 継続QRはバイト境界で分割されているため
+		// セパレータなしで直結する（\n を挿入すると CSV レコードが壊れる）。
+		if len(nonSplit) > 0 {
+			combined += strings.Join(nonSplit, "")
+		}
+		return combined, infos, msgs
 	}
 
 	return strings.Join(nonSplit, "\n"), nil, msgs
