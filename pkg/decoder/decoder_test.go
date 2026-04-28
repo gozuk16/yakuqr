@@ -51,8 +51,11 @@ func TestDecodeImage_Generated(t *testing.T) {
 			if len(results) == 0 {
 				t.Fatal("no QR decoded")
 			}
-			if !strings.Contains(results[0], tc.wantSubstr) {
-				t.Errorf("expected %q in decoded result, got: %q", tc.wantSubstr, results[0])
+			if results[0].Err != nil {
+				t.Fatalf("first QR decode error: %v", results[0].Err)
+			}
+			if !strings.Contains(results[0].Text, tc.wantSubstr) {
+				t.Errorf("expected %q in decoded result, got: %q", tc.wantSubstr, results[0].Text)
 			}
 		})
 	}

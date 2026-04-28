@@ -41,6 +41,14 @@ func (v Version) String() string {
 	}
 }
 
+// RawQR は1枚の物理QRコードの生データを表す。
+// ErrMsg が空なら Text にデコード済みテキストが入る。
+// ErrMsg が非空なら読み取り失敗を示す（Text は空）。
+type RawQR struct {
+	Text   string
+	ErrMsg string
+}
+
 // Record はJAHISの1レコードを表す。
 type Record struct {
 	Type   string   // レコード種別番号（先頭フィールド）
@@ -56,7 +64,7 @@ type SplitInfo struct {
 // Prescription は解析済み処方箋データを表す。
 type Prescription struct {
 	Version    Version
-	RawQRs     []string            // 生QRデータ（UTF-8変換済み）
+	RawQRs     []RawQR             // 生QRデータ（成功・失敗含む）
 	Records    []Record            // 全レコード（結合後）
 	RecordMap  map[string][]Record // レコード種別 → レコードリスト
 	SplitInfos []SplitInfo         // 分割QR情報（なければlen=0）

@@ -10,6 +10,18 @@ import (
 	"github.com/gozuk16/yakuqr/pkg/validator"
 )
 
+func toRawQRs(results []decoder.QRResult) []parser.RawQR {
+	raws := make([]parser.RawQR, len(results))
+	for i, r := range results {
+		if r.Err != nil {
+			raws[i] = parser.RawQR{ErrMsg: r.Err.Error()}
+		} else {
+			raws[i] = parser.RawQR{Text: r.Text}
+		}
+	}
+	return raws
+}
+
 func generatedImagePath(name string) string {
 	_, file, _, _ := runtime.Caller(0)
 	root := filepath.Join(filepath.Dir(file), "..", "..", "testdata", "generated")
@@ -31,14 +43,15 @@ func TestPipeline_DecodeParseValidate(t *testing.T) {
 		t.Run(tc.imageFile, func(t *testing.T) {
 			path := generatedImagePath(tc.imageFile)
 
-			rawQRs, errs := decoder.DecodeFile(path)
+			qrResults, errs := decoder.DecodeFile(path)
 			if len(errs) > 0 {
 				t.Fatalf("decode errors: %v", errs)
 			}
-			if len(rawQRs) == 0 {
+			if len(qrResults) == 0 {
 				t.Fatal("no QR decoded")
 			}
 
+			rawQRs := toRawQRs(qrResults)
 			p, _ := parser.Parse(rawQRs)
 			if p.Version != tc.wantVersion {
 				t.Errorf("version: want %v, got %v", tc.wantVersion, p.Version)
@@ -70,7 +83,7 @@ func TestPipeline_SplitQR_Combined(t *testing.T) {
 		t.Fatalf("decode split_2 errors: %v", errs2)
 	}
 
-	allQRs := append(qrs1, qrs2...)
+	allQRs := toRawQRs(append(qrs1, qrs2...))
 
 	p, msgs := parser.Parse(allQRs)
 
