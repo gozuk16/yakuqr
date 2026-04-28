@@ -3,6 +3,7 @@ package decoder
 import (
 	"fmt"
 	"image"
+	"image/draw"
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/makiuchi-d/gozxing"
 	gozxingmulti "github.com/makiuchi-d/gozxing/multi/qrcode"
 	pdfapi "github.com/pdfcpu/pdfcpu/pkg/api"
+	xdraw "golang.org/x/image/draw"
 )
 
 // DecodeError はデコード失敗の詳細を保持する。
@@ -75,6 +77,8 @@ func detectFileType(path string) (string, error) {
 }
 
 // decodeImage は画像ファイルからQRコードをデコードする。
+// 解像度が低い画像（スクリーンショット等）ではQRコードを見落とすことがあるため、
+// 1x→2x→3x と段階的にスケールアップし、最もテキスト量が多い結果を採用する。
 func decodeImage(path string) ([]string, []DecodeError) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -87,38 +91,75 @@ func decodeImage(path string) ([]string, []DecodeError) {
 		return nil, []DecodeError{{Err: fmt.Errorf("decode image: %w", err)}}
 	}
 
-	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
-	if err != nil {
-		return nil, []DecodeError{{Err: fmt.Errorf("bitmap: %w", err)}}
-	}
-
 	reader := gozxingmulti.NewQRCodeMultiReader()
-	results, err := reader.DecodeMultiple(bmp, nil)
-	if err != nil {
-		return nil, []DecodeError{{Err: fmt.Errorf("qr decode: %w", err)}}
+
+	var bestTexts []string
+	bestTotal := 0
+
+	// 元画像が既に十分大きければスケールアップは不要。
+	// スクリーンショット等の小さい画像（最長辺<3000px）は段階的にスケールアップし
+	// 最もテキスト量が多い結果を採用する。
+	b := img.Bounds()
+	maxDim := b.Dx()
+	if b.Dy() > maxDim {
+		maxDim = b.Dy()
+	}
+	scales := []int{1}
+	if maxDim < 3000 {
+		scales = []int{1, 2, 3}
 	}
 
-	// 座標順（上→下、左→右）でソート
-	sort.Slice(results, func(i, j int) bool {
-		pi := results[i].GetResultPoints()
-		pj := results[j].GetResultPoints()
-		if len(pi) == 0 || len(pj) == 0 {
-			return false
+	for _, scale := range scales {
+		target := scaleImage(img, scale)
+		bmp, err := gozxing.NewBinaryBitmapFromImage(target)
+		if err != nil {
+			continue
 		}
-		yi := pi[0].GetY()
-		yj := pj[0].GetY()
-		if absF64(yi-yj) > 10 {
-			return yi < yj
+		results, err := reader.DecodeMultiple(bmp, nil)
+		if err != nil {
+			continue
 		}
-		return pi[0].GetX() < pj[0].GetX()
-	})
 
-	var texts []string
-	var decErrs []DecodeError
-	for _, r := range results {
-		texts = append(texts, r.GetText())
+		sort.Slice(results, func(i, j int) bool {
+			pi := results[i].GetResultPoints()
+			pj := results[j].GetResultPoints()
+			if len(pi) == 0 || len(pj) == 0 {
+				return false
+			}
+			yi := pi[0].GetY()
+			yj := pj[0].GetY()
+			if absF64(yi-yj) > 10 {
+				return yi < yj
+			}
+			return pi[0].GetX() < pj[0].GetX()
+		})
+
+		total := 0
+		var texts []string
+		for _, r := range results {
+			texts = append(texts, r.GetText())
+			total += len(r.GetText())
+		}
+		if total > bestTotal {
+			bestTotal = total
+			bestTexts = texts
+		}
 	}
-	return texts, decErrs
+
+	return bestTexts, nil
+}
+
+// scaleImage は画像を整数倍にスケールアップする（scale=1 で元画像を返す）。
+// CatmullRom は QR コードのモジュール境界を保ちつつ滑らかな補間を行い、
+// gozxing の二値化精度を高める。
+func scaleImage(src image.Image, scale int) image.Image {
+	if scale <= 1 {
+		return src
+	}
+	b := src.Bounds()
+	dst := image.NewRGBA(image.Rect(0, 0, b.Dx()*scale, b.Dy()*scale))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)
+	return dst
 }
 
 func absF64(x float64) float64 {
