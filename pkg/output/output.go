@@ -16,7 +16,11 @@ func BuildText(p parser.Prescription, results []validator.ValidationResult) stri
 
 	sb.WriteString("=== RAW QR DATA ===\n")
 	for i, raw := range p.RawQRs {
-		fmt.Fprintf(&sb, "[QR #%d]\n%s\n\n", i+1, raw)
+		if raw.ErrMsg != "" {
+			fmt.Fprintf(&sb, "[QR #%d]\n(読み取り失敗: %s)\n\n", i+1, raw.ErrMsg)
+		} else {
+			fmt.Fprintf(&sb, "[QR #%d]\n%s\n\n", i+1, raw.Text)
+		}
 	}
 
 	sb.WriteString("=== PARSED DATA ===\n")

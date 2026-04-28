@@ -12,8 +12,8 @@ const (
 	Version2_2     Version = 5
 	Version2_3     Version = 6
 	Version2_4     Version = 7
-	Version2_5     Version = 8
-	Version2_6     Version = 9
+	// Version2_5 は欠番。JAHISTC08 は Ver.2.6 に対応するため Ver.2.5 は使用されない。
+	Version2_6 Version = 8
 )
 
 func (v Version) String() string {
@@ -34,13 +34,19 @@ func (v Version) String() string {
 		return "Ver.2.3"
 	case Version2_4:
 		return "Ver.2.4"
-	case Version2_5:
-		return "Ver.2.5"
 	case Version2_6:
 		return "Ver.2.6"
 	default:
 		return "Unknown"
 	}
+}
+
+// RawQR は1枚の物理QRコードの生データを表す。
+// ErrMsg が空なら Text にデコード済みテキストが入る。
+// ErrMsg が非空なら読み取り失敗を示す（Text は空）。
+type RawQR struct {
+	Text   string
+	ErrMsg string
 }
 
 // Record はJAHISの1レコードを表す。
@@ -58,7 +64,7 @@ type SplitInfo struct {
 // Prescription は解析済み処方箋データを表す。
 type Prescription struct {
 	Version    Version
-	RawQRs     []string            // 生QRデータ（UTF-8変換済み）
+	RawQRs     []RawQR             // 生QRデータ（成功・失敗含む）
 	Records    []Record            // 全レコード（結合後）
 	RecordMap  map[string][]Record // レコード種別 → レコードリスト
 	SplitInfos []SplitInfo         // 分割QR情報（なければlen=0）

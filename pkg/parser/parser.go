@@ -7,16 +7,25 @@ import (
 	"strings"
 )
 
-// Parse はQRコードのUTF-8文字列リストを受け取り、Prescriptionを返す。
+// Parse はQRコードの結果リストを受け取り、Prescriptionを返す。
+// 読み取り失敗エントリ（ErrMsg 非空）はパース対象から除外され、表示用に保持される。
 // 第2戻り値はWARNING/INFOメッセージのリスト。
-func Parse(rawQRs []string) (Prescription, []string) {
+func Parse(rawQRs []RawQR) (Prescription, []string) {
 	var msgs []string
 	p := Prescription{
 		RawQRs:    rawQRs,
 		RecordMap: make(map[string][]Record),
 	}
 
-	combined, splitInfos, warns := combineQRs(rawQRs)
+	// 成功したQRのテキストのみパース対象とする
+	texts := make([]string, 0, len(rawQRs))
+	for _, r := range rawQRs {
+		if r.ErrMsg == "" {
+			texts = append(texts, r.Text)
+		}
+	}
+
+	combined, splitInfos, warns := combineQRs(texts)
 	msgs = append(msgs, warns...)
 	p.SplitInfos = splitInfos
 
@@ -25,7 +34,7 @@ func Parse(rawQRs []string) (Prescription, []string) {
 		p.RecordMap[r.Type] = append(p.RecordMap[r.Type], r)
 	}
 
-	version, info := detectVersion(p.RecordMap, rawQRs)
+	version, info := detectVersion(p.RecordMap, texts)
 	p.Version = version
 	if info != "" {
 		msgs = append(msgs, info)
@@ -100,7 +109,14 @@ func combineQRs(rawQRs []string) (string, []SplitInfo, []string) {
 		for _, pt := range parts {
 			infos = append(infos, SplitInfo{Current: pt.seq, Total: maxSeq})
 		}
-		return strings.Join(sorted, "\n"), infos, msgs
+
+		combined := strings.Join(sorted, "\n")
+		// JAHISTC ヘッダーを持たない SA 継続QRはバイト境界で分割されているため
+		// セパレータなしで直結する（\n を挿入すると CSV レコードが壊れる）。
+		if len(nonSplit) > 0 {
+			combined += strings.Join(nonSplit, "")
+		}
+		return combined, infos, msgs
 	}
 
 	return strings.Join(nonSplit, "\n"), nil, msgs

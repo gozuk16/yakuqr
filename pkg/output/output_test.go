@@ -23,7 +23,7 @@ func makeTestPrescription() (parser.Prescription, []validator.ValidationResult) 
 	}
 	p := parser.Prescription{
 		Version:   parser.Version1_1,
-		RawQRs:    []string{"1,2,131012345\n2,テスト太郎,テストタロウ,19700101,1"},
+		RawQRs:    []parser.RawQR{{Text: "1,2,131012345\n2,テスト太郎,テストタロウ,19700101,1"}},
 		Records:   records,
 		RecordMap: rm,
 	}
@@ -110,7 +110,7 @@ func makeTestPrescriptionVer2_1() (parser.Prescription, []validator.ValidationRe
 	}
 	p := parser.Prescription{
 		Version:   parser.Version2_1,
-		RawQRs:    []string{"JAHISTC04,1\n1,テスト太郎,1,19700101"},
+		RawQRs:    []parser.RawQR{{Text: "JAHISTC04,1\n1,テスト太郎,1,19700101"}},
 		Records:   records,
 		RecordMap: rm,
 	}
@@ -128,7 +128,7 @@ func TestBuildText_Ver2_1_ShowsRecord1AsPatient(t *testing.T) {
 func makeTestPrescriptionUnknown() (parser.Prescription, []validator.ValidationResult) {
 	p := parser.Prescription{
 		Version:   parser.VersionUnknown,
-		RawQRs:    []string{"99,unknown"},
+		RawQRs:    []parser.RawQR{{Text: "99,unknown"}},
 		Records:   []parser.Record{},
 		RecordMap: map[string][]parser.Record{},
 	}

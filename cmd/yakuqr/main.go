@@ -54,11 +54,20 @@ func run(c *cli.Context) error {
 	successCount, failCount, errorCount := 0, 0, 0
 
 	for _, inputPath := range files {
-		rawQRs, decErrs := decoder.DecodeFile(inputPath)
-		if len(decErrs) > 0 && len(rawQRs) == 0 {
+		qrResults, decErrs := decoder.DecodeFile(inputPath)
+		if len(decErrs) > 0 && len(qrResults) == 0 {
 			fmt.Fprintf(os.Stderr, "%s: QR読み取り失敗: %v\n", inputPath, decErrs[0])
 			failCount++
 			continue
+		}
+
+		rawQRs := make([]parser.RawQR, len(qrResults))
+		for i, r := range qrResults {
+			if r.Err != nil {
+				rawQRs[i] = parser.RawQR{ErrMsg: r.Err.Error()}
+			} else {
+				rawQRs[i] = parser.RawQR{Text: r.Text}
+			}
 		}
 
 		p, msgs := parser.Parse(rawQRs)
