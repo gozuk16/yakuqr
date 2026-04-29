@@ -50,7 +50,7 @@ func main() {
 		stem := strings.TrimSuffix(filepath.Base(entry), ".txt")
 		outPath := filepath.Join(dstDir, "qr_"+stem+".png")
 
-		if err := qrcode.WriteFile(string(sjisBytes), qrcode.Medium, 256, outPath); err != nil {
+		if err := qrcode.WriteFile(string(sjisBytes), qrcode.Medium, 512, outPath); err != nil {
 			fmt.Fprintf(os.Stderr, "write QR %s: %v\n", outPath, err)
 			continue
 		}
