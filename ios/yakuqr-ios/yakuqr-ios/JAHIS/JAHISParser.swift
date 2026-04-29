@@ -69,7 +69,7 @@ struct JAHISParser {
             let infos = parts.sorted { $0.seq < $1.seq }
                 .map { JAHISSplitInfo(current: $0.seq, total: maxSeq) }
             var combined = sorted.joined(separator: "\n")
-            if !nonSplit.isEmpty { combined += nonSplit.joined() }
+            if !nonSplit.isEmpty { combined += "\n" + nonSplit.joined(separator: "\n") }
             return (combined, infos, msgs)
         }
 

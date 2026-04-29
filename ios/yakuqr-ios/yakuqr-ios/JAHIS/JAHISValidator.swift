@@ -89,7 +89,7 @@ struct JAHISValidator {
                 p.recordMap["6"] != nil ? (true, "") : (false, "レコード種別6（処方薬品情報）が存在しません")
             },
             Rule(field: "バージョン互換性", level: .info) { _ in
-                (false, "Ver.2/Ver.3 形式を検出しました。一部のフィールドはVer.4と異なる場合があります")
+                (false, "Ver.1.x/Ver.2.0 形式を検出しました。一部のフィールドはVer.2.1と異なる場合があります")
             },
         ]
     }
