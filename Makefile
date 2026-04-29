@@ -6,8 +6,12 @@ CMD := ./cmd/yakuqr
 build:
 	go build -o $(BINARY) $(CMD)
 
+win:
+	GOOS=windows GOARCH=amd64 go build -o windows-amd64/$(BINARY).exe $(CMD)
+
 test:
-	go test ./...
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
 
 lint:
 	golangci-lint run ./...
