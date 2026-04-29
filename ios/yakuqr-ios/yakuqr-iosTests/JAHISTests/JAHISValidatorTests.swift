@@ -81,4 +81,51 @@ final class JAHISValidatorTests: XCTestCase {
         let errors = JAHISValidator.validate(p).filter { $0.level == .error }
         XCTAssertTrue(errors.isEmpty, "有効なVer.2データにエラーがあってはならない: \(errors.map(\.description))")
     }
+
+    func testValidate_911RecordPresent_returnsWarning() {
+        let rec911 = JAHISRecord(type: "911", fields: ["911", "00000000000002", "3", "1"])
+        let p = JAHISPrescription(
+            version: .v2_6,
+            rawQRs: [],
+            records: [rec911],
+            recordMap: ["911": [rec911]],
+            splitInfos: []
+        )
+        let results = JAHISValidator.validate(p)
+        XCTAssertTrue(
+            results.contains { $0.level == .warning && $0.field == "分割制御レコード 911" },
+            "911レコード残存はWARNING"
+        )
+    }
+
+    func testValidate_orphanRecord_returnsWarning() {
+        let bad = JAHISRecord(type: "abc", fields: ["abc", "garbage"])
+        let p = JAHISPrescription(
+            version: .v2_1,
+            rawQRs: [],
+            records: [bad],
+            recordMap: [:],
+            splitInfos: []
+        )
+        let results = JAHISValidator.validate(p)
+        XCTAssertTrue(
+            results.contains { $0.level == .warning && $0.field == "レコード種別" },
+            "非数字レコード種別はWARNING"
+        )
+    }
+
+    func testValidate_readFailure_returnsWarning() {
+        let p = JAHISPrescription(
+            version: .v2_1,
+            rawQRs: [RawQR(text: "", errMsg: "decode failed")],
+            records: [],
+            recordMap: [:],
+            splitInfos: []
+        )
+        let results = JAHISValidator.validate(p)
+        XCTAssertTrue(
+            results.contains { $0.level == .warning && $0.field == "QR #1" },
+            "読み取り失敗QRはWARNING"
+        )
+    }
 }
