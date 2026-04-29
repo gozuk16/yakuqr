@@ -5,7 +5,7 @@ import UIKit
 
 @MainActor
 final class ScannerViewModel: ObservableObject {
-    @Published var scannedQRs: [String] = []
+    @Published var scannedQRs: [RawQR] = []
     @Published var parseResult: ParseResult? = nil
     @Published var showPhotoPermissionAlert = false
 
@@ -29,7 +29,7 @@ final class ScannerViewModel: ObservableObject {
     func addQR(_ value: String) {
         guard !seenQRs.contains(value) else { return }
         seenQRs.insert(value)
-        scannedQRs.append(value)
+        scannedQRs.append(RawQR(text: value, errMsg: ""))
     }
 
     func parse() {
