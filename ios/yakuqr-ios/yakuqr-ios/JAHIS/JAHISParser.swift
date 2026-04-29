@@ -35,7 +35,6 @@ struct JAHISParser {
 
     private struct Part911 {
         let content: String
-        let dataID: String
         let total: Int
         let current: Int
     }
@@ -112,7 +111,6 @@ struct JAHISParser {
                       let current = Int(fields[3].trimmingCharacters(in: .whitespaces)) else { continue }
                 result.append(Part911(
                     content: pt.content,
-                    dataID: fields[1].trimmingCharacters(in: .whitespaces),
                     total: total,
                     current: current
                 ))
