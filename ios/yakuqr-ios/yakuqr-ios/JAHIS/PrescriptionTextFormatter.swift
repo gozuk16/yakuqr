@@ -9,7 +9,11 @@ struct PrescriptionTextFormatter {
         lines.append("=== RAW QR DATA ===")
         for (i, raw) in prescription.rawQRs.enumerated() {
             lines.append("[QR #\(i + 1)]")
-            lines.append(raw)
+            if raw.isSuccess {
+                lines.append(raw.text)
+            } else {
+                lines.append("(読み取り失敗: \(raw.errMsg))")
+            }
             lines.append("")
         }
 
@@ -40,7 +44,7 @@ struct PrescriptionTextFormatter {
         if let recs = prescription.recordMap["1"], let first = recs.first {
             let f = first.fields
             // Ver.4 の場合、fields[1] は氏名（Ver.2/3 では fields[1] はバージョン番号）
-            if prescription.version == .v4 {
+            if [JAHISVersion.v2_1, .v2_6, .unknown].contains(prescription.version) {
                 lines.append("--- 患者情報 ---")
                 if f.count > 1 { lines.append("氏名: \(f[1])") }
                 if f.count > 3 { lines.append("生年月日: \(formatDate(f[3]))") }

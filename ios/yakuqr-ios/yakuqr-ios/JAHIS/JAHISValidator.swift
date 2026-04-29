@@ -17,10 +17,15 @@ struct JAHISValidator {
     }
 
     private static func rulesFor(_ version: JAHISVersion) -> [Rule] {
-        version == .v4 ? ver4Rules() : ver2ver3Rules(version)
+        switch version {
+        case .v2_1, .v2_6, .unknown:
+            return newFormatRules()
+        case .v1_0, .v1_1, .v2_0:
+            return oldFormatRules(version)
+        }
     }
 
-    private static func ver4Rules() -> [Rule] {
+    private static func newFormatRules() -> [Rule] {
         [
             Rule(field: "処方箋情報(レコード1)", level: .error) { p in
                 guard p.recordMap["1"] != nil else {
@@ -52,7 +57,7 @@ struct JAHISValidator {
         ]
     }
 
-    private static func ver2ver3Rules(_ version: JAHISVersion) -> [Rule] {
+    private static func oldFormatRules(_ version: JAHISVersion) -> [Rule] {
         [
             Rule(field: "処方箋情報(レコード1)", level: .warning) { p in
                 p.recordMap["1"] != nil ? (true, "") : (false, "レコード種別1（処方箋情報）が存在しません")

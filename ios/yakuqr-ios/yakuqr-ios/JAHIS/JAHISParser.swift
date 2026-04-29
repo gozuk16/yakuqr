@@ -2,7 +2,7 @@ import Foundation
 
 struct JAHISParser {
 
-    static func parse(_ rawQRs: [String]) -> (JAHISPrescription, [String]) {
+    static func parse(_ rawQRs: [RawQR]) -> (JAHISPrescription, [String]) {
         var msgs: [String] = []
         let (combined, splitInfos, warns) = combineQRs(rawQRs)
         msgs.append(contentsOf: warns)
@@ -33,12 +33,14 @@ struct JAHISParser {
         let seq: Int
     }
 
-    private static func combineQRs(_ rawQRs: [String]) -> (String, [JAHISSplitInfo], [String]) {
+    private static func combineQRs(_ rawQRs: [RawQR]) -> (String, [JAHISSplitInfo], [String]) {
         var msgs: [String] = []
         var parts: [QRPart] = []
         var nonSplit: [String] = []
 
-        for raw in rawQRs {
+        let texts = rawQRs.filter { $0.isSuccess }.map { $0.text }
+
+        for raw in texts {
             let lines = splitLines(raw)
             guard let firstLine = lines.first?.trimmingCharacters(in: .whitespaces) else { continue }
 
@@ -66,7 +68,9 @@ struct JAHISParser {
             }
             let infos = parts.sorted { $0.seq < $1.seq }
                 .map { JAHISSplitInfo(current: $0.seq, total: maxSeq) }
-            return (sorted.joined(separator: "\n"), infos, msgs)
+            var combined = sorted.joined(separator: "\n")
+            if !nonSplit.isEmpty { combined += nonSplit.joined() }
+            return (combined, infos, msgs)
         }
 
         return (nonSplit.joined(separator: "\n"), [], msgs)
@@ -83,29 +87,35 @@ struct JAHISParser {
 
     private static func detectVersion(
         recordMap: [String: [JAHISRecord]],
-        rawQRs: [String]
+        rawQRs: [RawQR]
     ) -> (JAHISVersion, String?) {
-        for raw in rawQRs {
-            let lines = splitLines(raw)
+        for raw in rawQRs where raw.isSuccess {
+            let lines = splitLines(raw.text)
             guard let first = lines.first?.trimmingCharacters(in: .whitespaces),
-                  first.hasPrefix("JAHISTC"), first.count >= 9 else { continue }
-            let verCode = String(first.dropFirst(7).prefix(2))
-            switch verCode {
-            case "02": return (.v2, nil)
-            case "03": return (.v3, nil)
-            case "04": return (.v4, nil)
-            default: break
+                  first.hasPrefix("JAHISTC") else { continue }
+            let afterPrefix = String(first.dropFirst(7))
+            let numPart = String(afterPrefix.split(separator: ",").first ?? "")
+            let numStr = String(numPart.drop(while: { $0 == "0" }))
+            if let n = Int(numStr) {
+                switch n {
+                case 1: return (.v1_0, nil)
+                case 2: return (.v1_1, nil)
+                case 3: return (.v2_0, nil)
+                case 4: return (.v2_1, nil)
+                case 8: return (.v2_6, nil)
+                default: break
+                }
             }
         }
         if let recs = recordMap["1"], let first = recs.first, first.fields.count >= 2 {
             switch first.fields[1] {
-            case "2": return (.v2, nil)
-            case "3": return (.v3, nil)
-            case "4": return (.v4, nil)
+            case "1": return (.v1_0, nil)
+            case "2": return (.v1_1, nil)
+            case "3": return (.v2_0, nil)
             default: break
             }
         }
-        return (.v4, "[INFO] バージョンを検出できなかったため、Ver.4（最新版）として処理します")
+        return (.v2_1, "[INFO] バージョンを検出できなかったため、Ver.2.1（最新版）として処理します")
     }
 
     private static func splitLines(_ s: String) -> [String] {

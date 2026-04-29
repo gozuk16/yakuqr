@@ -46,9 +46,15 @@ struct ResultView: View {
                     ForEach(Array(vm.parseResult.prescription.rawQRs.enumerated()), id: \.offset) { i, raw in
                         VStack(alignment: .leading) {
                             Text("QR #\(i + 1)").font(.caption.bold())
-                            Text(raw)
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
+                            if raw.isSuccess {
+                                Text(raw.text)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .textSelection(.enabled)
+                            } else {
+                                Text("(読み取り失敗: \(raw.errMsg))")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .padding(.horizontal)
                     }

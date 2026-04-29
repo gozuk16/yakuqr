@@ -42,7 +42,7 @@ final class ScannerViewModelTests: XCTestCase {
         vm.addQR(raw)
         vm.parse()
         XCTAssertNotNil(vm.parseResult)
-        XCTAssertEqual(vm.parseResult?.prescription.version, .v4)
+        XCTAssertEqual(vm.parseResult?.prescription.version, .v2_1)
     }
 
     func testParse_emptyQRs_setsParseResult() {
