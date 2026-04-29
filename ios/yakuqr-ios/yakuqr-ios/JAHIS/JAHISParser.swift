@@ -33,6 +33,13 @@ struct JAHISParser {
         let seq: Int
     }
 
+    private struct Part911 {
+        let content: String
+        let dataID: String
+        let total: Int
+        let current: Int
+    }
+
     private static func combineQRs(_ rawQRs: [RawQR]) -> (String, [JAHISSplitInfo], [String]) {
         var msgs: [String] = []
         var parts: [QRPart] = []
@@ -58,6 +65,16 @@ struct JAHISParser {
         }
 
         if !parts.isEmpty {
+            // 911累積型分割: 全パーツが同一seqかつ全パーツに911レコードがある場合
+            if allSameSeq(parts), parts.count > 1, let sp = parse911Parts(parts) {
+                let last = sp.max(by: { $0.current < $1.current })!
+                var content = remove911Lines(last.content)
+                if !nonSplit.isEmpty { content += "\n" + nonSplit.joined(separator: "\n") }
+                let infos = sp.map { JAHISSplitInfo(current: $0.current, total: $0.total) }
+                return (content, infos, msgs)
+            }
+
+            // JAHISTC連番分割
             let maxSeq = parts.max(by: { $0.seq < $1.seq })!.seq
             var sorted = [String](repeating: "", count: maxSeq)
             for pt in parts where pt.seq >= 1 && pt.seq <= maxSeq {
@@ -74,6 +91,43 @@ struct JAHISParser {
         }
 
         return (nonSplit.joined(separator: "\n"), [], msgs)
+    }
+
+    private static func allSameSeq(_ parts: [QRPart]) -> Bool {
+        guard parts.count >= 2 else { return false }
+        let first = parts[0].seq
+        return parts.dropFirst().allSatisfy { $0.seq == first }
+    }
+
+    private static func parse911Parts(_ parts: [QRPart]) -> [Part911]? {
+        var result: [Part911] = []
+        for pt in parts {
+            var found = false
+            for line in splitLines(pt.content) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("911,") else { continue }
+                let fields = trimmed.components(separatedBy: ",")
+                guard fields.count >= 4,
+                      let total = Int(fields[2].trimmingCharacters(in: .whitespaces)),
+                      let current = Int(fields[3].trimmingCharacters(in: .whitespaces)) else { continue }
+                result.append(Part911(
+                    content: pt.content,
+                    dataID: fields[1].trimmingCharacters(in: .whitespaces),
+                    total: total,
+                    current: current
+                ))
+                found = true
+                break
+            }
+            if !found { return nil }
+        }
+        return result.isEmpty ? nil : result
+    }
+
+    private static func remove911Lines(_ content: String) -> String {
+        splitLines(content)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("911,") }
+            .joined(separator: "\n")
     }
 
     private static func parseRecords(_ combined: String) -> [JAHISRecord] {

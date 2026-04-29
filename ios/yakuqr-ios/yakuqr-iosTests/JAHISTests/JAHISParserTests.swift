@@ -58,4 +58,36 @@ final class JAHISParserTests: XCTestCase {
         XCTAssertEqual(p.version, .v2_1)
         XCTAssertTrue(msgs.contains(where: { $0.contains("Ver.2.1") }))
     }
+
+    func testParse_ver2_6_detectsVersion() throws {
+        let raw = RawQR(text: try readTestdata("ver2_6_911split_1.txt"), errMsg: "")
+        let (p, _) = JAHISParser.parse([raw])
+        XCTAssertEqual(p.version, .v2_6)
+    }
+
+    func testParse_911split_3way_all_hasAllRps() throws {
+        let raws = try [
+            rawQR("ver2_6_911split3_1.txt"),
+            rawQR("ver2_6_911split3_2.txt"),
+            rawQR("ver2_6_911split3_3.txt"),
+        ]
+        let (p, _) = JAHISParser.parse(raws)
+        XCTAssertEqual(p.version, .v2_6)
+        XCTAssertEqual(p.recordMap["201"]?.count, 3, "Rp1〜Rp3の3件が必要")
+        XCTAssertNil(p.recordMap["911"], "911行はRecordMapに残らない")
+    }
+
+    func testParse_911split_missingQR2_usesMaxCumulative() throws {
+        // QR1+QR3のみ（QR2欠落）: 累積型のため QR3 がすべてのRpを含む
+        let raws = try [rawQR("ver2_6_911split3_1.txt"), rawQR("ver2_6_911split3_3.txt")]
+        let (p, _) = JAHISParser.parse(raws)
+        XCTAssertEqual(p.recordMap["201"]?.count, 3, "累積型: QR2欠落でもRp1〜Rp3全て取得できる")
+        XCTAssertNil(p.recordMap["911"])
+    }
+
+    func testParse_911split_qr1Only_has911InRecordMap() throws {
+        // QR1のみ: 1パーツなので 911 パスに入らず、911行がRecordMapに残る
+        let (p, _) = JAHISParser.parse([try rawQR("ver2_6_911split_1.txt")])
+        XCTAssertNotNil(p.recordMap["911"], "QR1のみのとき911行がRecordMapに残る")
+    }
 }
