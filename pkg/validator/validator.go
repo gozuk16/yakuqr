@@ -8,6 +8,7 @@ func Validate(p parser.Prescription) []ValidationResult {
 	results := checkQRReadFailures(p)
 	results = append(results, checkGarbledData(p)...)
 	results = append(results, checkOrphanRecords(p)...)
+	results = append(results, checkSplit911Incomplete(p)...)
 
 	// バージョン固有チェック
 	for _, r := range rulesFor(p.Version) {

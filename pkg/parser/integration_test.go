@@ -3,6 +3,7 @@ package parser_test
 import (
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/gozuk16/yakuqr/pkg/decoder"
@@ -103,5 +104,201 @@ func TestPipeline_SplitQR_Combined(t *testing.T) {
 		if r.Level == validator.LevelError {
 			t.Errorf("unexpected validation ERROR: %v", r)
 		}
+	}
+}
+
+func TestPipeline_911Split_Combined(t *testing.T) {
+	path1 := generatedImagePath("qr_ver2_6_911split_1.png")
+	path2 := generatedImagePath("qr_ver2_6_911split_2.png")
+
+	qrs1, errs1 := decoder.DecodeFile(path1)
+	if len(errs1) > 0 {
+		t.Fatalf("decode 911split_1 errors: %v", errs1)
+	}
+	qrs2, errs2 := decoder.DecodeFile(path2)
+	if len(errs2) > 0 {
+		t.Fatalf("decode 911split_2 errors: %v", errs2)
+	}
+
+	allQRs := toRawQRs(append(qrs1, qrs2...))
+	p, msgs := parser.Parse(allQRs)
+	for _, m := range msgs {
+		t.Logf("parse message: %s", m)
+	}
+
+	if p.Version != parser.Version2_6 {
+		t.Errorf("version: want Version2_6, got %v", p.Version)
+	}
+
+	// 911分割: QR2（累積）から両方のRpが取得できること
+	rp201 := p.RecordMap["201"]
+	if len(rp201) < 2 {
+		t.Errorf("201レコード数: want >= 2 (Rp1+Rp2), got %d", len(rp201))
+	}
+
+	// 911レコード自体はRecordMapに残らないこと
+	if _, ok := p.RecordMap["911"]; ok {
+		t.Error("911レコードがRecordMapに残っている（remove911Linesが機能していない）")
+	}
+
+	// SplitInfosに911分割情報が格納されていること
+	if len(p.SplitInfos) != 2 {
+		t.Errorf("SplitInfos len: want 2, got %d", len(p.SplitInfos))
+	}
+	if p.SplitInfos[0].Total != 2 || p.SplitInfos[1].Total != 2 {
+		t.Errorf("SplitInfos.Total: want 2, got %v", p.SplitInfos)
+	}
+
+	results := validator.Validate(p)
+	for _, r := range results {
+		if r.Level == validator.LevelError {
+			t.Errorf("unexpected validation ERROR: %v", r)
+		}
+	}
+}
+
+func TestPipeline_Split3Way_All(t *testing.T) {
+	qrs1, _ := decoder.DecodeFile(generatedImagePath("qr_ver4_split3_1.png"))
+	qrs2, _ := decoder.DecodeFile(generatedImagePath("qr_ver4_split3_2.png"))
+	qrs3, _ := decoder.DecodeFile(generatedImagePath("qr_ver4_split3_3.png"))
+
+	allQRs := toRawQRs(append(append(qrs1, qrs2...), qrs3...))
+	p, msgs := parser.Parse(allQRs)
+	for _, m := range msgs {
+		t.Logf("parse message: %s", m)
+	}
+
+	if p.Version != parser.Version2_1 {
+		t.Errorf("version: want Version2_1, got %v", p.Version)
+	}
+	if len(p.RecordMap["201"]) != 3 {
+		t.Errorf("201レコード数: want 3, got %d", len(p.RecordMap["201"]))
+	}
+	for _, m := range msgs {
+		if strings.Contains(m, "WARNING") {
+			t.Errorf("unexpected parse WARNING: %s", m)
+		}
+	}
+}
+
+func TestPipeline_Split3Way_MissingQR2(t *testing.T) {
+	qrs1, _ := decoder.DecodeFile(generatedImagePath("qr_ver4_split3_1.png"))
+	qrs3, _ := decoder.DecodeFile(generatedImagePath("qr_ver4_split3_3.png"))
+
+	allQRs := toRawQRs(append(qrs1, qrs3...))
+	p, msgs := parser.Parse(allQRs)
+
+	found := false
+	for _, m := range msgs {
+		if strings.Contains(m, "2/3") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("want parse warning about missing 2/3, got: %v", msgs)
+	}
+
+	// QR2(Rp1)が欠落しているので 201 レコードは Rp2,Rp3 の2件のみ
+	if len(p.RecordMap["201"]) != 2 {
+		t.Errorf("201レコード数: want 2 (Rp2+Rp3), got %d", len(p.RecordMap["201"]))
+	}
+}
+
+func TestPipeline_Split2Way_QR1Only(t *testing.T) {
+	qrs1, errs1 := decoder.DecodeFile(generatedImagePath("qr_ver4_split_1.png"))
+	if len(errs1) > 0 {
+		t.Fatalf("decode errors: %v", errs1)
+	}
+
+	allQRs := toRawQRs(qrs1)
+	p, _ := parser.Parse(allQRs)
+
+	if p.Version != parser.Version2_1 {
+		t.Errorf("version: want Version2_1, got %v", p.Version)
+	}
+	if _, ok := p.RecordMap["201"]; ok {
+		t.Error("want no 201 records when only QR1 is scanned")
+	}
+}
+
+func TestPipeline_911Split3Way_All(t *testing.T) {
+	qrs1, _ := decoder.DecodeFile(generatedImagePath("qr_ver2_6_911split3_1.png"))
+	qrs2, _ := decoder.DecodeFile(generatedImagePath("qr_ver2_6_911split3_2.png"))
+	qrs3, _ := decoder.DecodeFile(generatedImagePath("qr_ver2_6_911split3_3.png"))
+
+	allQRs := toRawQRs(append(append(qrs1, qrs2...), qrs3...))
+	p, msgs := parser.Parse(allQRs)
+	for _, m := range msgs {
+		t.Logf("parse message: %s", m)
+	}
+
+	if p.Version != parser.Version2_6 {
+		t.Errorf("version: want Version2_6, got %v", p.Version)
+	}
+	if len(p.RecordMap["201"]) != 3 {
+		t.Errorf("201レコード数: want 3, got %d", len(p.RecordMap["201"]))
+	}
+	if _, ok := p.RecordMap["911"]; ok {
+		t.Error("911レコードがRecordMapに残っている")
+	}
+
+	results := validator.Validate(p)
+	for _, r := range results {
+		if r.Level == validator.LevelError {
+			t.Errorf("unexpected validation ERROR: %v", r)
+		}
+	}
+}
+
+func TestPipeline_911Split3Way_MissingQR2(t *testing.T) {
+	qrs1, _ := decoder.DecodeFile(generatedImagePath("qr_ver2_6_911split3_1.png"))
+	qrs3, _ := decoder.DecodeFile(generatedImagePath("qr_ver2_6_911split3_3.png"))
+
+	allQRs := toRawQRs(append(qrs1, qrs3...))
+	p, _ := parser.Parse(allQRs)
+
+	if p.Version != parser.Version2_6 {
+		t.Errorf("version: want Version2_6, got %v", p.Version)
+	}
+	// 累積型: QR3が最大連番なのでQR2が欠落してもRp1〜Rp3全て取得できる
+	if len(p.RecordMap["201"]) != 3 {
+		t.Errorf("201レコード数: want 3 (cumulative from QR3), got %d", len(p.RecordMap["201"]))
+	}
+	if _, ok := p.RecordMap["911"]; ok {
+		t.Error("911レコードがRecordMapに残っている")
+	}
+
+	results := validator.Validate(p)
+	for _, r := range results {
+		if r.Level == validator.LevelError {
+			t.Errorf("unexpected validation ERROR: %v", r)
+		}
+	}
+}
+
+func TestPipeline_911Split2Way_QR1Only(t *testing.T) {
+	qrs1, errs1 := decoder.DecodeFile(generatedImagePath("qr_ver2_6_911split_1.png"))
+	if len(errs1) > 0 {
+		t.Fatalf("decode errors: %v", errs1)
+	}
+
+	allQRs := toRawQRs(qrs1)
+	p, _ := parser.Parse(allQRs)
+
+	// QR1のみなので allSameSeq=false → JAHISTC通常パスに落ちる
+	// 911行がRecordMapに残るためバリデーターがWARNINGを出す
+	results := validator.Validate(p)
+	found := false
+	for _, r := range results {
+		if r.Level == validator.LevelWarning && r.Field == "分割制御レコード 911" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("want WARNING about 911 record when only QR1 is scanned")
+	}
+
+	if len(p.RecordMap["201"]) == 0 {
+		t.Error("want at least 1 Rp (Rp1) when QR1 is scanned")
 	}
 }

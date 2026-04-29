@@ -112,3 +112,24 @@ func TestValidate_UnknownVersion_ReturnsError(t *testing.T) {
 		t.Error("expected ERROR for unknown version")
 	}
 }
+
+func TestValidate_911RecordPresent_ReturnsWarning(t *testing.T) {
+	p := parser.Prescription{
+		Version: parser.Version2_6,
+		RecordMap: map[string][]parser.Record{
+			"1":   {{Type: "1", Fields: []string{"1", "テスト九郎", "1", "19900901"}}},
+			"201": {{Type: "201", Fields: []string{"201", "1", "アムロジピン錠5mg", "1", "錠", "4", "1149019F1625", "1"}}},
+			"911": {{Type: "911", Fields: []string{"911", "00000000000002", "3", "1"}}},
+		},
+	}
+	results := validator.Validate(p)
+	found := false
+	for _, r := range results {
+		if r.Level == validator.LevelWarning && r.Field == "分割制御レコード 911" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("want WARNING for 911 record presence, got none")
+	}
+}
