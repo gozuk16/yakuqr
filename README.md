@@ -11,6 +11,8 @@ JAHIS院外処方箋２次元シンボル記録条件規約（Ver.1.0〜Ver.2.6�
 
 ### インストール
 
+[Releases](https://github.com/gozuk16/yakuqr/releases) から Mac（amd64/arm64）・Windows（amd64）向けビルド済みバイナリをダウンロードできます。
+
 ```bash
 go install github.com/gozuk16/yakuqr/cmd/yakuqr@latest
 ```
@@ -22,6 +24,12 @@ git clone https://github.com/gozuk16/yakuqr.git
 cd yakuqr
 make build
 ```
+
+> **Macでの注意:** 未署名バイナリのため、初回起動時にGatekeeperにブロックされることがあります。その場合は以下を実行してください。
+>
+> ```bash
+> xattr -d com.apple.quarantine yakuqr
+> ```
 
 ### 使い方
 
@@ -85,11 +93,14 @@ ERROR/WARNINGレベルの問題は標準エラー出力にも表示されます�
 ### ビルド・開発
 
 ```bash
-make build   # バイナリをビルド
-make test    # 全テストを実行
-make lint    # golangci-lintを実行
-make clean   # ビルド成果物を削除
+make build             # バイナリをビルド
+make test              # 全テストを実行
+make lint              # golangci-lintを実行
+make clean             # ビルド成果物を削除
+make release-snapshot  # GoReleaserでMac/Windows向けバイナリをローカルビルド（配布はしない）
 ```
+
+`v*` 形式のタグ（例: `v0.2.0`）をpushすると、GitHub ActionsがGoReleaserを実行し、Mac/Windows向けバイナリを自動でGitHub Releasesに公開します。
 
 ---
 

@@ -12,11 +12,14 @@ import (
 	"github.com/gozuk16/yakuqr/pkg/validator"
 )
 
+// version はGoReleaserのldflagsで注入される（未設定時は "dev"）。
+var version = "dev"
+
 func main() {
 	app := &cli.App{
 		Name:    "yakuqr",
 		Usage:   "JAHIS院外処方箋QRコードを読み取り、内容を解析してテキストファイルに出力します",
-		Version: "0.1.0",
+		Version: version,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "output",
