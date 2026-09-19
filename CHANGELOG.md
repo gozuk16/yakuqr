@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+### Added
+- GoReleaser + GitHub Actionsによるリリース自動化（`v*`タグpush時にMac amd64/arm64・Windows amd64向けバイナリをGitHub Releasesへ公開）
+- `make release-snapshot` でGoReleaserのローカル動作確認が可能に
+- `-X main.version` によるビルド時バージョン注入（`--version`で反映）
+
 ## [0.1.3] - 2026-04-29
 ### Added
 - JAHISTC連番3分割・911累積型3分割のテストデータ（6ファイル）と QR 画像を追加
