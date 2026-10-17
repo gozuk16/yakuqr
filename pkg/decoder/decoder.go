@@ -32,9 +32,12 @@ func (e DecodeError) Error() string {
 // QRResult は1枚の物理QRコードのデコード結果を表す。
 // Err が nil の場合は Text にデコード済みテキストが入る。
 // Err が非 nil の場合は読み取り失敗（Text は空）。
+// SAParityErr は分割QR（Structured Append）の連結パリティが一致しない場合に、
+// その分割QRセットの全エントリに設定される（末尾データの欠落を示す）。
 type QRResult struct {
-	Text string
-	Err  error
+	Text        string
+	Err         error
+	SAParityErr error
 }
 
 // DecodeFile はファイルパスを受け取り、含まれるQRコードの結果リストを返す。
@@ -91,7 +94,8 @@ func detectFileType(path string) (string, error) {
 type rawEntry struct {
 	text   string
 	err    error
-	seqNum int // SA シーケンス番号（raw値: position<<4 | total-1）。非SA は -1
+	seqNum int       // SA シーケンス番号（raw値: position<<4 | total-1）。非SA は -1
+	sa     *saSymbol // SA の場合のみ設定
 	pointY float64
 	pointX float64
 }
@@ -124,9 +128,18 @@ func decodeRawEntries(bmp *gozxing.BinaryBitmap) []rawEntry {
 			continue
 		}
 		if decoderResult.HasStructuredAppend() {
-			entries = append(entries, rawEntry{
+			sym := &saSymbol{
 				text:   decoderResult.GetText(),
+				parity: decoderResult.GetStructuredAppendParity(),
+			}
+			version := (det.GetBits().GetHeight() - 17) / 4
+			if data, eci, err := parseDataBytes(decoderResult.GetRawBytes(), version); err == nil {
+				sym.data, sym.eci = data, eci
+			}
+			entries = append(entries, rawEntry{
+				text:   sym.text,
 				seqNum: decoderResult.GetStructuredAppendSequenceNumber(),
+				sa:     sym,
 				pointY: py,
 				pointX: px,
 			})
@@ -168,8 +181,8 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 		scales = []int{1, 2, 3}
 	}
 
-	// SA QR: ポジション→テキスト（最初に成功したスケールの結果を採用）
-	saByPos := make(map[int]string)
+	// SA QR: ポジション→シンボル（最初に成功したスケールの結果を採用）
+	saByPos := make(map[int]*saSymbol)
 	saTotal := 0
 
 	// 非SA QR: テキストで重複排除しつつ位置情報を保持
@@ -209,7 +222,7 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 					saTotal = total
 				}
 				if _, ok := saByPos[pos]; !ok {
-					saByPos[pos] = e.text
+					saByPos[pos] = e.sa
 				}
 			} else {
 				// 非SA QR: テキストが同じなら同一QRとして重複排除
@@ -235,11 +248,17 @@ func decodeImage(path string) ([]QRResult, []DecodeError) {
 
 	if saTotal > 0 {
 		// SA QR: 全ポジションを順に並べ、読み取れなかった位置はエラーエントリを挿入
+		symbols := make([]*saSymbol, saTotal)
+		for pos := range symbols {
+			symbols[pos] = saByPos[pos]
+		}
+		texts, parityErr := mergeStructuredAppend(symbols)
+
 		results := make([]QRResult, saTotal)
 		gapErrIdx := 0
 		for pos := 0; pos < saTotal; pos++ {
-			if text, ok := saByPos[pos]; ok {
-				results[pos] = QRResult{Text: text}
+			if symbols[pos] != nil {
+				results[pos] = QRResult{Text: texts[pos], SAParityErr: parityErr}
 			} else {
 				// 収集したデコード例外があれば割り当て（重複排除済みなので1種類ずつ）
 				var gapErr error

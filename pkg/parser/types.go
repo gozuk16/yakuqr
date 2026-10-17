@@ -44,9 +44,11 @@ func (v Version) String() string {
 // RawQR は1枚の物理QRコードの生データを表す。
 // ErrMsg が空なら Text にデコード済みテキストが入る。
 // ErrMsg が非空なら読み取り失敗を示す（Text は空）。
+// SAParityErr が非空なら分割QR（Structured Append）の連結パリティ不一致（末尾欠落）を示す。
 type RawQR struct {
-	Text   string
-	ErrMsg string
+	Text        string
+	ErrMsg      string
+	SAParityErr string
 }
 
 // Record はJAHISの1レコードを表す。

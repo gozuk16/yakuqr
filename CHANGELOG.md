@@ -6,6 +6,9 @@
 - GoReleaser + GitHub Actionsによるリリース自動化（`v*`タグpush時にMac amd64/arm64・Windows amd64向けバイナリをGitHub Releasesへ公開）
 - `make release-snapshot` でGoReleaserのローカル動作確認が可能に
 - `-X main.version` によるビルド時バージョン注入（`--version`で反映）
+- バリデーター: 分割QR（Structured Append）の連結パリティ不一致を ERROR として報告（発行側の誤り訂正レベル・分割数の誤設定などで各QRの末尾データが切り捨てられたケースを検出）
+### Fixed
+- 分割QR（Structured Append）で2バイト文字が分割境界をまたぐとシンボル全体が文字化けし、「Shift-JIS分断」と誤検知される問題を修正（各シンボルのバイト列を連結してから文字コード変換するよう変更）
 
 ## [0.1.3] - 2026-04-29
 ### Added

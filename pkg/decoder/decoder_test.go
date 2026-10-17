@@ -1,6 +1,7 @@
 package decoder_test
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -79,6 +80,62 @@ func TestDecodeImage_Collected(t *testing.T) {
 			}
 			if len(results) == 0 {
 				t.Fatal("no QR decoded from collected sample")
+			}
+		})
+	}
+}
+
+func TestDecodeImage_StructuredAppend(t *testing.T) {
+	want, err := os.ReadFile(testdataPath("ver4_single.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		file         string
+		wantParityNG bool
+		wantReadFail bool
+	}{
+		{"sa_a_valid_char_straddle.png", false, false},
+		{"sa_b_truncated_mid_char.png", true, false},
+		{"sa_c_truncated_on_boundary.png", true, false},
+		{"sa_d_overflow_declared_len.png", false, true},
+		{"sa_e_misconfigured_ecl.png", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.file, func(t *testing.T) {
+			results, errs := decoder.DecodeFile(testdataPath(filepath.Join("generated", "sa", tc.file)))
+			if len(errs) > 0 {
+				t.Fatalf("decode errors: %v", errs)
+			}
+			if len(results) != 2 {
+				t.Fatalf("got %d results, want 2", len(results))
+			}
+			var sb strings.Builder
+			readFail, parityNG := false, false
+			for _, r := range results {
+				if r.Err != nil {
+					readFail = true
+				}
+				if r.SAParityErr != nil {
+					parityNG = true
+				}
+				sb.WriteString(r.Text)
+			}
+			if readFail != tc.wantReadFail {
+				t.Errorf("readFail = %v, want %v", readFail, tc.wantReadFail)
+			}
+			if parityNG != tc.wantParityNG {
+				t.Errorf("parity mismatch = %v, want %v", parityNG, tc.wantParityNG)
+			}
+			if !tc.wantParityNG && !tc.wantReadFail {
+				if got := sb.String(); got != string(want) {
+					t.Errorf("concatenated text mismatch\n got: %q\nwant: %q", got, want)
+				}
+				for i, r := range results {
+					if strings.ContainsRune(r.Text, '�') {
+						t.Errorf("QR #%d contains U+FFFD: %q", i+1, r.Text)
+					}
+				}
 			}
 		})
 	}

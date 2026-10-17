@@ -22,10 +22,31 @@ func checkQRReadFailures(p parser.Prescription) []ValidationResult {
 	return results
 }
 
+// checkSAParity は分割QR（Structured Append）の連結パリティ不一致を ERROR として返す。
+// 不一致は各QRの末尾データが欠落していることを示す（発行側で誤り訂正レベルや
+// 分割数を誤設定し、容量不足で切り捨てられた場合など）。セットにつき1件のみ報告する。
+func checkSAParity(p parser.Prescription) []ValidationResult {
+	for _, r := range p.RawQRs {
+		if r.SAParityErr != "" {
+			return []ValidationResult{{
+				Level: LevelError,
+				Field: "分割QR",
+				Message: fmt.Sprintf("%s。各QRの末尾データが欠落している可能性があります"+
+					"（発行側の誤り訂正レベル・分割数の設定誤りなど）", r.SAParityErr),
+			}}
+		}
+	}
+	return nil
+}
+
 // checkGarbledData はレコードフィールドに Unicode 置換文字（U+FFFD）が含まれる場合
 // WARNING を返す。Shift-JIS 文字が QR 分割境界で切断されると発生する。
 // 同一レコード種別かつ同一QR番号の組み合わせは1件のみ報告する。
+// パリティ不一致がある場合、文字化けはデータ欠落の結果なので報告しない（checkSAParity が原因を報告する）。
 func checkGarbledData(p parser.Prescription) []ValidationResult {
+	if len(checkSAParity(p)) > 0 {
+		return nil
+	}
 	var results []ValidationResult
 	reported := make(map[string]bool)
 	for _, r := range p.Records {

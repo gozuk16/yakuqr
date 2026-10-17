@@ -6,6 +6,7 @@ import "github.com/gozuk16/yakuqr/pkg/parser"
 func Validate(p parser.Prescription) []ValidationResult {
 	// QR読み取り品質の共通チェック（全バージョン）
 	results := checkQRReadFailures(p)
+	results = append(results, checkSAParity(p)...)
 	results = append(results, checkGarbledData(p)...)
 	results = append(results, checkOrphanRecords(p)...)
 	results = append(results, checkSplit911Incomplete(p)...)
