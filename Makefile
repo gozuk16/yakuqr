@@ -1,7 +1,7 @@
 BINARY := yakuqr
 CMD := ./cmd/yakuqr
 
-.PHONY: build test lint clean gen-testdata release-snapshot
+.PHONY: build test lint clean gen-testdata gen-sa-testdata release-snapshot
 
 build:
 	go build -o $(BINARY) $(CMD)
@@ -21,6 +21,9 @@ clean:
 
 gen-testdata:
 	go run ./tools/gen-testdata-qr/
+
+gen-sa-testdata:
+	go run ./tools/gen-sa-testdata-qr/
 
 release-snapshot:
 	goreleaser release --snapshot --clean

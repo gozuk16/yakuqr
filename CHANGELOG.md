@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Added
+- 分割QR（Structured Append）の異常系テストデータ生成ツール `tools/gen-sa-testdata-qr`（`make gen-sa-testdata`）と生成画像 `testdata/generated/sa/`（正常・末尾切り捨て・文字数超過・誤り訂正レベル誤設定の5パターン）
 - GoReleaser + GitHub Actionsによるリリース自動化（`v*`タグpush時にMac amd64/arm64・Windows amd64向けバイナリをGitHub Releasesへ公開）
 - `make release-snapshot` でGoReleaserのローカル動作確認が可能に
 - `-X main.version` によるビルド時バージョン注入（`--version`で反映）
