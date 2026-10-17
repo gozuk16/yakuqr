@@ -70,6 +70,9 @@ func run(c *cli.Context) error {
 				rawQRs[i] = parser.RawQR{ErrMsg: r.Err.Error()}
 			} else {
 				rawQRs[i] = parser.RawQR{Text: r.Text}
+				if r.SAParityErr != nil {
+					rawQRs[i].SAParityErr = r.SAParityErr.Error()
+				}
 			}
 		}
 

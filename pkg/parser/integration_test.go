@@ -18,6 +18,9 @@ func toRawQRs(results []decoder.QRResult) []parser.RawQR {
 			raws[i] = parser.RawQR{ErrMsg: r.Err.Error()}
 		} else {
 			raws[i] = parser.RawQR{Text: r.Text}
+			if r.SAParityErr != nil {
+				raws[i].SAParityErr = r.SAParityErr.Error()
+			}
 		}
 	}
 	return raws

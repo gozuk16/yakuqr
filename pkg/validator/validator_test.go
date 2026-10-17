@@ -133,3 +133,25 @@ func TestValidate_911RecordPresent_ReturnsWarning(t *testing.T) {
 		t.Error("want WARNING for 911 record presence, got none")
 	}
 }
+
+func TestValidate_SAParityMismatch_ReturnsErrorAndSuppressesGarbled(t *testing.T) {
+	p := makeMinimalPrescriptionVer4()
+	p.Records[1].Fields[2] = "アムロジピン錠�"
+	p.RawQRs = []parser.RawQR{
+		{Text: "JAHISTC08,1\n1,テスト太郎", SAParityErr: "パリティ不一致"},
+		{Text: "201,1,アムロジピン錠�", SAParityErr: "パリティ不一致"},
+	}
+	results := validator.Validate(p)
+	parityErrs := 0
+	for _, r := range results {
+		if r.Level == validator.LevelError && strings.Contains(r.Message, "末尾") {
+			parityErrs++
+		}
+		if strings.Contains(r.Message, "文字化け") {
+			t.Errorf("garbled warning should be suppressed on parity mismatch: %v", r)
+		}
+	}
+	if parityErrs != 1 {
+		t.Errorf("got %d parity ERRORs, want 1: %v", parityErrs, results)
+	}
+}
